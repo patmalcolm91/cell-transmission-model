@@ -4,6 +4,7 @@ Implementation of the CTM as described here:
 """
 
 import numpy as np
+import yaml
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle, Arrow
 from matplotlib.lines import Line2D
@@ -241,6 +242,41 @@ class Network:
         self._links = [] if links is None else links
         self._mappable = None  # type: plt.cm.ScalarMappable
 
+    @classmethod
+    def from_yaml(cls, file):
+        with open(file) as f:
+            cfg = yaml.load(f, Loader=yaml.Loader)
+        # load nodes
+        if type(cfg["nodes"]) == dict:
+            nodes = cfg["nodes"]
+        elif type(cfg["nodes"]) == list:
+            nodes = {n.get("id", i) if type(i) == dict else i: n for i, n in enumerate(cfg["nodes"])}
+        else:
+            raise ValueError("Invalid network file format. Nodes could not be parsed.")
+        for nid, node in nodes.items():
+            if type(node) == list:
+                node = {"pos": node}
+            if node.get("sink", False):
+                nodes[nid] = SinkNode(node["pos"])
+            elif node.get("source", False):
+                nodes[nid] = SourceNode(node["pos"], node["inflow"])
+            else:
+                nodes[nid] = Node(node["pos"])
+        # load links
+        if type(cfg["links"]) == dict:
+            links = cfg["links"]
+        elif type(cfg["links"]) == list:
+            links = {l.get("id", i) if type(i) == dict else i: l for i, l in enumerate(cfg["links"])}
+        else:
+            raise ValueError("Invalid network file format. Links could not be parsed.")
+        for lid, link in links.items():
+            if type(link) == list:
+                link = {"nodes": link}
+            from_node, to_node = [nodes[n] for n in link.pop("nodes")]
+            density = link.pop("density", 0)
+            links[lid] = Link(from_node, to_node, FundamentalDiagram(**link), density=density)
+        return cls(nodes=nodes.values(), links=links.values())
+
     def insert_node(self, node):
         self._nodes.append(node)
 
@@ -282,29 +318,9 @@ class Network:
 
 
 if __name__ == "__main__":
+    Network.from_yaml("test_net.yaml")
     from matplotlib.animation import FuncAnimation
-    n1 = SourceNode((0, 0), inflow=1800)
-    n2 = Node((5, 0))
-    n3 = Node((10, 0))
-    n4 = Node((15, 0))
-    n5 = Node((20, 0))
-    n6 = Node((25, 0))
-    n7 = SinkNode((30, 0))
-    n5b = Node((20, 5))
-    n6b = Node((25, 5))
-    n7b = SinkNode((30, 5))
-
-    l1 = Link(n1, n2, FundamentalDiagram())
-    l2 = Link(n2, n3, FundamentalDiagram())
-    l3 = Link(n3, n4, FundamentalDiagram())
-    l4 = Link(n4, n5, FundamentalDiagram())
-    l5 = Link(n5, n6, FundamentalDiagram())
-    l6 = Link(n6, n7, FundamentalDiagram(flow_capacity=600))
-    l4b = Link(n4, n5b, FundamentalDiagram())
-    l5b = Link(n5b, n6b, FundamentalDiagram())
-    l6b = Link(n6b, n7b, FundamentalDiagram(flow_capacity=600))
-
-    net = Network(nodes=[n1, n2, n3, n4, n5, n6, n7, n5b, n6b, n7b], links=[l1, l2, l3, l4, l5, l6, l4b, l5b, l6b])
+    net = Network.from_yaml("test_net.yaml")
 
     def anim(t, ax, network, dt):
         artists = net.plot(ax)

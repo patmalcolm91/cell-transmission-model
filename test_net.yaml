@@ -1,0 +1,34 @@
+nodes:
+  0:
+    pos: [0, 0]
+    source: True
+    inflow: 1800
+  1: [5, 0]
+  2: [10, 0]
+  branch:
+    pos: [15, 0]
+    turn_ratios:
+      - 0.5
+      - 0.5
+  4: [20, 0]
+  5: [25, 0]
+  6:
+    pos: [30, 0]
+    sink: True
+  4b: [20, 5]
+  5b: [25, 5]
+  6b:
+    pos: [30, 5]
+    sink: True
+links:
+  - [0, 1]
+  - [1, 2]
+  - [2, branch]
+  - [branch, 4]
+  - [4, 5]
+  - nodes: [5, 6]
+    flow_capacity: 600
+  - [branch, 4b]
+  - [4b, 5b]
+  - nodes: [5b, 6b]
+    flow_capacity: 600
