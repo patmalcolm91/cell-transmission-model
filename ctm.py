@@ -283,20 +283,28 @@ class Network:
 
 if __name__ == "__main__":
     from matplotlib.animation import FuncAnimation
-    n1 = SourceNode((0, 0), inflow=1600)
+    n1 = SourceNode((0, 0), inflow=1800)
     n2 = Node((5, 0))
     n3 = Node((10, 0))
     n4 = Node((15, 0))
     n5 = Node((20, 0))
-    n6 = SinkNode((25, 0))
+    n6 = Node((25, 0))
+    n7 = SinkNode((30, 0))
+    n5b = Node((20, 5))
+    n6b = Node((25, 5))
+    n7b = SinkNode((30, 5))
 
     l1 = Link(n1, n2, FundamentalDiagram())
     l2 = Link(n2, n3, FundamentalDiagram())
     l3 = Link(n3, n4, FundamentalDiagram())
     l4 = Link(n4, n5, FundamentalDiagram())
-    l5 = Link(n5, n6, FundamentalDiagram(flow_capacity=800))
+    l5 = Link(n5, n6, FundamentalDiagram())
+    l6 = Link(n6, n7, FundamentalDiagram(flow_capacity=600))
+    l4b = Link(n4, n5b, FundamentalDiagram())
+    l5b = Link(n5b, n6b, FundamentalDiagram())
+    l6b = Link(n6b, n7b, FundamentalDiagram(flow_capacity=600))
 
-    net = Network(nodes=[n1, n2, n3, n4, n5, n6], links=[l1, l2, l3, l4, l5])
+    net = Network(nodes=[n1, n2, n3, n4, n5, n6, n7, n5b, n6b, n7b], links=[l1, l2, l3, l4, l5, l6, l4b, l5b, l6b])
 
     def anim(t, ax, network, dt):
         artists = net.plot(ax)
