@@ -53,9 +53,9 @@ class FundamentalDiagram:
 
 
 class Node:
-    def __init__(self, pos):
+    def __init__(self, pos, *, radius=0):
         self.pos = np.array(pos)
-        self.radius = 1
+        self.radius = radius
         self.incoming_links = []
         self.outgoing_links = []
         self._split_ratio_matrix = None
@@ -113,14 +113,16 @@ class Node:
     def plot(self, ax=None, **kwargs):
         if ax is None:
             ax = plt.gca()  # type: plt.Axes
-        artist = Circle(self.pos, radius=self.radius, color="black", **kwargs)
-        ax.add_patch(artist)
-        return [artist]
+        artists = []
+        if self.radius > 0:
+            artists.append(Circle(self.pos, radius=self.radius, color="black", **kwargs))
+            ax.add_patch(artists[-1])
+        return artists
 
 
 class SourceNode(Node):
-    def __init__(self, pos, inflow):
-        super().__init__(pos)
+    def __init__(self, pos, inflow, *, radius=1):
+        super().__init__(pos, radius=radius)
         self.inflow = inflow
 
     def compute_flows(self):
@@ -146,6 +148,9 @@ class SourceNode(Node):
 
 
 class SinkNode(Node):
+    def __init__(self, pos, *, radius=1):
+        super().__init__(pos, radius=radius)
+
     def compute_flows(self):
         if len(self.outgoing_links) > 0:
             raise UserWarning("Sink nodes are not allowed to have outgoing links.")
