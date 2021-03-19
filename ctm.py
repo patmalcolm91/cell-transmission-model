@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Circle, Arrow
 from matplotlib.lines import Line2D
 from matplotlib.colors import Normalize
+from matplotlib.offsetbox import AnchoredText
 import warnings
 
 
@@ -322,19 +323,44 @@ class Network:
         return artists
 
 
+class Simulation:
+    def __init__(self, net, start_time=0, end_time=24, step_size=0.25):
+        self.net = net
+        self.start_time = start_time
+        self.end_time = end_time
+        self.time = start_time
+        self.step_size = step_size
+
+    def step(self):
+        self.time += self.step_size
+        self.net.step(self.step_size)
+
+    def plot(self, ax=None, timestamp_loc="upper left", **kwargs):
+        if ax is None:
+            ax = plt.gca()  # type: plt.Axes
+        artists = []
+        artists += net.plot(ax, **kwargs)
+        if timestamp_loc is not None:
+            h, m, s = int(self.time), round((self.time*60) % 60)%60, round((self.time*3600) % 60)%60
+            artists.append(AnchoredText("{:02.0f}:{:02.0f}:{:02.0f}".format(h, m, s), loc=timestamp_loc))
+            ax.add_artist(artists[-1])
+        return artists
+
+
 if __name__ == "__main__":
     Network.from_yaml("test_net.yaml")
     from matplotlib.animation import FuncAnimation
     net = Network.from_yaml("test_net.yaml")
 
-    def anim(t, ax, network, dt):
-        artists = net.plot(ax)
-        network.step(dt)
+    def anim(t, ax, sim):
+        artists = sim.plot(ax)
+        sim.step()
         return artists
 
     fig, ax = plt.subplots()
     net.plot_colorbar(ax)
-    a = FuncAnimation(fig, anim, fargs=(ax, net, 1/30), blit=True, interval=100)
+    sim = Simulation(net, start_time=0, end_time=24, step_size=1/30)
+    a = FuncAnimation(fig, anim, fargs=(ax, sim), blit=True, interval=100)
 
     # net.plot()
     plt.show()
