@@ -282,10 +282,6 @@ class Network:
 
 
 if __name__ == "__main__":
-    # TODO:
-    #    - Check consistency of units
-    #    - Debug Node.compute_flows() - appears to result in negative and large densities
-
     from matplotlib.animation import FuncAnimation
     n1 = SourceNode((0, 0), inflow=1600)
     n2 = Node((5, 0))
