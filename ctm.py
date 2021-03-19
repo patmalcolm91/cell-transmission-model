@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle, Arrow
 from matplotlib.lines import Line2D
+from matplotlib.colors import Normalize
 import warnings
 
 
@@ -238,6 +239,7 @@ class Network:
     def __init__(self, nodes=None, links=None):
         self._nodes = [] if nodes is None else nodes
         self._links = [] if links is None else links
+        self._mappable = None  # type: plt.cm.ScalarMappable
 
     def insert_node(self, node):
         self._nodes.append(node)
@@ -251,15 +253,29 @@ class Network:
         for link in self._links:
             link.update_state(dt)
 
+    @property
+    def colorbar_mappable(self):
+        if self._mappable is not None:
+            return self._mappable
+        max_flow = max(*[link.flow_capacity for link in self._links])
+        cmap = plt.get_cmap("RdYlGn")
+        self._mappable = plt.cm.ScalarMappable(cmap=cmap, norm=Normalize(vmin=0, vmax=max_flow))
+        return self._mappable
+
+    def plot_colorbar(self, ax=None):
+        if ax is None:
+            ax = plt.gca()
+        cb = plt.colorbar(self.colorbar_mappable, ax=ax)
+        cb.set_label("Flow (veh/h)")
+
     def plot(self, ax=None):
         if ax is None:
             ax = plt.gca()  # type: plt.Axes
         artists = []
         for node in self._nodes:
             artists += node.plot(ax)
-        cmap = plt.get_cmap("RdYlGn")
         for link in self._links:
-            artists += link.plot(ax, color=cmap(link.flow/1800))
+            artists += link.plot(ax, color=self.colorbar_mappable.to_rgba(link.flow))
         ax.set_aspect("equal")
         ax.autoscale_view()
         return artists
@@ -292,6 +308,7 @@ if __name__ == "__main__":
         return artists
 
     fig, ax = plt.subplots()
+    net.plot_colorbar(ax)
     a = FuncAnimation(fig, anim, fargs=(ax, net, 1/30), blit=True, interval=100)
 
     # net.plot()
