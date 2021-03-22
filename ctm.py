@@ -54,7 +54,8 @@ class FundamentalDiagram:
 
 
 class Node:
-    def __init__(self, pos, *, radius=0):
+    def __init__(self, pos, *, id=None, radius=0):
+        self.id = id
         self.pos = np.array(pos)
         self.radius = radius
         self.incoming_links = []
@@ -122,8 +123,8 @@ class Node:
 
 
 class SourceNode(Node):
-    def __init__(self, pos, inflow, *, radius=1):
-        super().__init__(pos, radius=radius)
+    def __init__(self, pos, inflow, *, id=None, radius=1):
+        super().__init__(pos, id=id, radius=radius)
         self.inflow = inflow
 
     def compute_flows(self):
@@ -149,8 +150,8 @@ class SourceNode(Node):
 
 
 class SinkNode(Node):
-    def __init__(self, pos, *, radius=1):
-        super().__init__(pos, radius=radius)
+    def __init__(self, pos, *, id=None, radius=1):
+        super().__init__(pos, id=id, radius=radius)
 
     def compute_flows(self):
         if len(self.outgoing_links) > 0:
@@ -172,13 +173,14 @@ class SinkNode(Node):
 
 
 class Link:
-    def __init__(self, from_node, to_node, fundamental_diagram, density=0):
+    def __init__(self, from_node, to_node, fundamental_diagram, density=0, *, id=None):
         self.fundamental_diagram = fundamental_diagram  # type: FundamentalDiagram
         self.density = density
         self.from_node = from_node
         self.from_node.outgoing_links.append(self)
         self.to_node = to_node
         self.to_node.incoming_links.append(self)
+        self.id = id if id is not None else str(self.from_node.id) + "->" + str(self.to_node.id)
         self._vec = self.to_node.pos - self.from_node.pos
         self.length = np.linalg.norm(self._vec)
         self._unit_vector = self._vec / self.length
@@ -263,11 +265,11 @@ class Network:
             if type(node) == list:
                 node = {"pos": node}
             if node.get("sink", False):
-                nodes[nid] = SinkNode(node["pos"])
+                nodes[nid] = SinkNode(node["pos"], id=nid)
             elif node.get("source", False):
-                nodes[nid] = SourceNode(node["pos"], node["inflow"])
+                nodes[nid] = SourceNode(node["pos"], node["inflow"], id=nid)
             else:
-                nodes[nid] = Node(node["pos"])
+                nodes[nid] = Node(node["pos"], id=nid)
         # load links
         if type(cfg["links"]) == dict:
             links = cfg["links"]
