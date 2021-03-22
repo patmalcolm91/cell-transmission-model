@@ -237,7 +237,7 @@ class Link:
             ax = plt.gca()  # type: plt.gca()
         start = self.from_node.pos + self.from_node.radius*self._unit_vector
         delta = (self.length - self.from_node.radius - self.to_node.radius)*self._unit_vector
-        artist = Arrow(*start, *delta, **kwargs)
+        artist = Arrow(*start, *delta, **{"width": self.flow_capacity*3.2/1800, **kwargs})
         ax.add_patch(artist)
         return [artist]
 
