@@ -6,8 +6,8 @@ Implementation of the CTM as described here:
 import numpy as np
 import yaml
 import matplotlib.pyplot as plt
-from matplotlib.patches import Circle, Arrow
-from matplotlib.lines import Line2D
+from matplotlib.patches import Arrow
+from _Util import LineDataUnits, CircleDataUnits
 from matplotlib.colors import Normalize
 from matplotlib.offsetbox import AnchoredText
 import warnings
@@ -117,7 +117,7 @@ class Node:
             ax = plt.gca()  # type: plt.Axes
         artists = []
         if self.radius > 0:
-            artists.append(Circle(self.pos, radius=self.radius, color="black", **kwargs))
+            artists.append(CircleDataUnits(self.pos, radius=self.radius, color="black", **kwargs))
             ax.add_patch(artists[-1])
         return artists
 
@@ -138,13 +138,13 @@ class SourceNode(Node):
         if ax is None:
             ax = plt.gca()  # type: plt.Axes
         artists = list()
-        artists.append(Circle(self.pos, radius=self.radius, fc=(0, 0, 0, 0), ec="black", lw=3, **kwargs))
-        ax.add_patch(artists[-1])
         x, y, r = *self.pos, self.radius
         s = 0.5
-        artists.append(Line2D([x-s*r, x+s*r], [y-s*r, y+s*r], solid_capstyle="butt", linewidth=3, color="black"))
+        artists.append(CircleDataUnits(self.pos, radius=self.radius, fc=(0, 0, 0, 0), ec="black", lw=0.2*r, **kwargs))
+        ax.add_patch(artists[-1])
+        artists.append(LineDataUnits([x-s*r, x+s*r], [y-s*r, y+s*r], solid_capstyle="butt", linewidth=0.2*r, color="black"))
         ax.add_line(artists[-1])
-        artists.append(Line2D([x-s*r, x+s*r], [y+s*r, y-s*r], solid_capstyle="butt", linewidth=3, color="black"))
+        artists.append(LineDataUnits([x-s*r, x+s*r], [y+s*r, y-s*r], solid_capstyle="butt", linewidth=0.2*r, color="black"))
         ax.add_line(artists[-1])
         return artists
 
@@ -164,10 +164,11 @@ class SinkNode(Node):
     def plot(self, ax=None, **kwargs):
         if ax is None:
             ax = plt.gca()  # type: plt.Axes
+        r = self.radius
         artists = list()
-        artists.append(Circle(self.pos, radius=self.radius, fc=(0, 0, 0, 0), ec="black", lw=3, **kwargs))
+        artists.append(CircleDataUnits(self.pos, radius=self.radius, fc=(0, 0, 0, 0), ec="black", lw=0.2*r, **kwargs))
         ax.add_patch(artists[-1])
-        artists.append(Circle(self.pos, radius=self.radius*0.3, fc="black", lw=0, **kwargs))
+        artists.append(CircleDataUnits(self.pos, radius=self.radius*0.3, fc="black", lw=0, **kwargs))
         ax.add_patch(artists[-1])
         return artists
 
