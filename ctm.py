@@ -13,6 +13,9 @@ from matplotlib.offsetbox import AnchoredText
 import warnings
 
 
+EPS = 1E-6  # epsilon (threshold for small values)
+
+
 class FundamentalDiagram:
     def __init__(self, flow_capacity=1800, critical_density=33.7, congestion_wave_speed=6.9):
         self._flow_capacity = flow_capacity
@@ -109,7 +112,7 @@ class Node:
         # TODO: REMOVE THE FOLLOWING DEBUG LINES ONCE THIS FUNCTION HAS BEEN TESTED
         inflows = sum([link.downstream_flow for link in self.incoming_links])
         outflows = sum([link.upstream_flow for link in self.outgoing_links])
-        if inflows - outflows != 0:
+        if abs(inflows - outflows) > EPS:
             raise SystemError("Singularity detected in node! (net flow: " + str(inflows-outflows) + ")")
 
     def plot(self, ax=None, exaggeration=1, **kwargs):
