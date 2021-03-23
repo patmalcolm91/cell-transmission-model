@@ -112,12 +112,12 @@ class Node:
         if inflows - outflows != 0:
             raise SystemError("Singularity detected in node! (net flow: " + str(inflows-outflows) + ")")
 
-    def plot(self, ax=None, **kwargs):
+    def plot(self, ax=None, exaggeration=1, **kwargs):
         if ax is None:
             ax = plt.gca()  # type: plt.Axes
         artists = []
         if self.radius > 0:
-            artists.append(CircleDataUnits(self.pos, radius=self.radius, color="black", **kwargs))
+            artists.append(CircleDataUnits(self.pos, radius=exaggeration*self.radius, color="black", **kwargs))
             ax.add_patch(artists[-1])
         return artists
 
@@ -134,13 +134,13 @@ class SourceNode(Node):
             raise UserWarning("Source nodes must have exactly one outgoing link.")
         self.outgoing_links[0].upstream_flow = self.inflow
 
-    def plot(self, ax=None, **kwargs):
+    def plot(self, ax=None, exaggeration=1, **kwargs):
         if ax is None:
             ax = plt.gca()  # type: plt.Axes
         artists = list()
-        x, y, r = *self.pos, self.radius
+        x, y, r = *self.pos, self.radius*exaggeration
         s = 0.5
-        artists.append(CircleDataUnits(self.pos, radius=self.radius, fc=(0, 0, 0, 0), ec="black", lw=0.2*r, **kwargs))
+        artists.append(CircleDataUnits(self.pos, radius=r, fc=(0, 0, 0, 0), ec="black", lw=0.2*r, **kwargs))
         ax.add_patch(artists[-1])
         artists.append(LineDataUnits([x-s*r, x+s*r], [y-s*r, y+s*r], solid_capstyle="butt", linewidth=0.2*r, color="black"))
         ax.add_line(artists[-1])
@@ -161,14 +161,14 @@ class SinkNode(Node):
         link = self.incoming_links[0]
         link.downstream_flow = link.free_flow_speed*link.density*(min(1, link.flow_capacity/(link.free_flow_speed*link.density)) if link.density > 0 else 1)
 
-    def plot(self, ax=None, **kwargs):
+    def plot(self, ax=None, exaggeration=1, **kwargs):
         if ax is None:
             ax = plt.gca()  # type: plt.Axes
-        r = self.radius
+        r = self.radius * exaggeration
         artists = list()
-        artists.append(CircleDataUnits(self.pos, radius=self.radius, fc=(0, 0, 0, 0), ec="black", lw=0.2*r, **kwargs))
+        artists.append(CircleDataUnits(self.pos, radius=r, fc=(0, 0, 0, 0), ec="black", lw=0.2*r, **kwargs))
         ax.add_patch(artists[-1])
-        artists.append(CircleDataUnits(self.pos, radius=self.radius*0.3, fc="black", lw=0, **kwargs))
+        artists.append(CircleDataUnits(self.pos, radius=r*0.3, fc="black", lw=0, **kwargs))
         ax.add_patch(artists[-1])
         return artists
 
@@ -233,14 +233,14 @@ class Link:
         return self.fundamental_diagram.speed_at_density(self.density)
 
     def update_state(self, dt):
-        self.density = self.density + (dt / self.length) * (self.upstream_flow - self.downstream_flow)
+        self.density = self.density + (dt / (self.length / 1000)) * (self.upstream_flow - self.downstream_flow)
 
-    def plot(self, ax=None, **kwargs):
+    def plot(self, ax=None, exaggeration=1, **kwargs):
         if ax is None:
             ax = plt.gca()  # type: plt.gca()
-        start = self.from_node.pos + self.from_node.radius*self._unit_vector
-        delta = (self.length - self.from_node.radius - self.to_node.radius)*self._unit_vector
-        artist = Arrow(*start, *delta, **{"width": self.flow_capacity*3.2/1800, **kwargs})
+        start = self.from_node.pos + exaggeration*self.from_node.radius*self._unit_vector
+        delta = (self.length - exaggeration*(self.from_node.radius + self.to_node.radius))*self._unit_vector
+        artist = Arrow(*start, *delta, **{"width": exaggeration*self.flow_capacity*3.2/1800, **kwargs})
         ax.add_patch(artist)
         return [artist]
 
@@ -313,14 +313,14 @@ class Network:
         cb = plt.colorbar(self.colorbar_mappable, ax=ax)
         cb.set_label("Flow (veh/h)")
 
-    def plot(self, ax=None):
+    def plot(self, ax=None, exaggeration=1):
         if ax is None:
             ax = plt.gca()  # type: plt.Axes
         artists = []
         for node in self._nodes:
-            artists += node.plot(ax)
+            artists += node.plot(ax, exaggeration=exaggeration)
         for link in self._links:
-            artists += link.plot(ax, color=self.colorbar_mappable.to_rgba(link.flow))
+            artists += link.plot(ax, exaggeration=exaggeration, color=self.colorbar_mappable.to_rgba(link.flow))
         ax.set_aspect("equal")
         ax.autoscale_view()
         return artists
@@ -338,11 +338,11 @@ class Simulation:
         self.time += self.step_size
         self.net.step(self.step_size)
 
-    def plot(self, ax=None, timestamp_loc="upper left", **kwargs):
+    def plot(self, ax=None, timestamp_loc="upper left", exaggeration=1, **kwargs):
         if ax is None:
             ax = plt.gca()  # type: plt.Axes
         artists = []
-        artists += net.plot(ax, **kwargs)
+        artists += net.plot(ax, exaggeration=exaggeration, **kwargs)
         if timestamp_loc is not None:
             h, m, s = int(self.time), round((self.time*60) % 60)%60, round((self.time*3600) % 60)%60
             artists.append(AnchoredText("{:02.0f}:{:02.0f}:{:02.0f}".format(h, m, s), loc=timestamp_loc))
@@ -356,7 +356,7 @@ if __name__ == "__main__":
     net = Network.from_yaml("test_net.yaml")
 
     def anim(t, ax, sim):
-        artists = sim.plot(ax)
+        artists = sim.plot(ax, exaggeration=1000)
         sim.step()
         return artists
 
