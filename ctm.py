@@ -396,7 +396,6 @@ class Simulation:
 
 
 if __name__ == "__main__":
-    Network.from_yaml("test_net.yaml")
     from matplotlib.animation import FuncAnimation
     net = Network.from_yaml("test_net.yaml")
 
