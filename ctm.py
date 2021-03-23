@@ -186,10 +186,15 @@ class Link:
         self.to_node.incoming_links.append(self)
         self.id = id if id is not None else str(self.from_node.id) + "->" + str(self.to_node.id)
         self._vec = self.to_node.pos - self.from_node.pos
+        self.heading = np.arctan2(self._vec[1], self._vec[0])
         self.length = np.linalg.norm(self._vec)
         self._unit_vector = self._vec / self.length
         self._upstream_flow = None
         self._downstream_flow = None
+
+    @property
+    def direction(self):
+        return self._unit_vector
 
     @property
     def flow_capacity(self):
