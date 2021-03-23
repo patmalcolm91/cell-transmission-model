@@ -328,7 +328,6 @@ class Network:
                 split_ratios[links[lid]] = _ratios
         for link, ratios in split_ratios.items():
             link.set_outgoing_split_ratios(ratios)
-            print(ratios)
         return cls(nodes=nodes.values(), links=links.values())
 
     def insert_node(self, node):
