@@ -7,9 +7,6 @@ nodes:
   2: [10000, 0]
   branch:
     pos: [15000, 0]
-    turn_ratios:
-      - 0.5
-      - 0.5
   4: [20000, 0]
   5: [25000, 0]
   6:
@@ -23,7 +20,8 @@ nodes:
 links:
   - [0, 1]
   - [1, 2]
-  - [2, branch]
+  - nodes: [2, branch]
+    split_ratios: [0.3, 0.7]
   - [branch, 4]
   - [4, 5]
   - nodes: [5, 6]

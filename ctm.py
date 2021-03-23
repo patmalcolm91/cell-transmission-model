@@ -65,12 +65,15 @@ class Node:
         self.outgoing_links = []
         self._split_ratio_matrix = None
 
+    def _generate_even_split_ratio_matrix(self):
+        m, n = len(self.incoming_links), len(self.outgoing_links)
+        self._split_ratio_matrix = np.full((m, n), fill_value=1/n)
+
     @property
     def split_ratio_matrix(self):
         if self._split_ratio_matrix is None:
             warnings.warn("No split ratio matrix defined for node. Assuming even split.")
-            m, n = len(self.incoming_links), len(self.outgoing_links)
-            self._split_ratio_matrix = np.full((m, n), fill_value=1/n)
+            self._generate_even_split_ratio_matrix()
         return self._split_ratio_matrix
 
     @split_ratio_matrix.setter
@@ -78,6 +81,26 @@ class Node:
         if matrix.shape != (len(self.incoming_links), len(self.outgoing_links)):
             warnings.warn("Specified split ratio matrix does not match number of incoming and outgoing links.")
         self._split_ratio_matrix = matrix
+
+    def set_link_outgoing_split_ratios(self, link, ratios):
+        """
+        Set the outgoing split ratios for the specified incoming link. Ratios are defined from left to right relative to
+        the direction of the specified link.
+        """
+        if type(ratios) == list:
+            ratios = np.array(ratios)
+        ratios = ratios / sum(ratios)  # normalize ratios
+        if self._split_ratio_matrix is None:
+            self._generate_even_split_ratio_matrix()
+        link_index = self.incoming_links.index(link) if isinstance(link, Link) else [l.id for l in self.incoming_links].index(link)
+        # get left-to-right order of outgoing links with respect to given incoming link
+        _outgoing_link_headings = np.array([link.heading for link in self.outgoing_links])
+        _outgoing_link_order = np.argsort(_outgoing_link_headings)[::-1]
+        _incoming_ordered_pos = np.searchsorted(_outgoing_link_headings[_outgoing_link_order], link.heading)
+        n = len(self.outgoing_links)
+        _relative_ordered_indices = _outgoing_link_order[(np.arange(n) + _incoming_ordered_pos) % n]
+        # set the ratios
+        self._split_ratio_matrix[link_index, _relative_ordered_indices] = ratios
 
     def compute_flows(self):
         m, n = len(self.incoming_links), len(self.outgoing_links)
@@ -240,6 +263,13 @@ class Link:
     def speed(self):
         return self.fundamental_diagram.speed_at_density(self.density)
 
+    def set_outgoing_split_ratios(self, ratios):
+        """
+        Set relevant entries in to_node's split ratio matrix given split ratios leaving this edge.
+        Ratios should be defined from left to right w.r.t. this link's direction. Ratios are auto-normalized.
+        """
+        self.to_node.set_link_outgoing_split_ratios(self, ratios)
+
     def update_state(self, dt):
         self.density = self.density + (dt / (self.length / 1000)) * (self.upstream_flow - self.downstream_flow)
 
@@ -286,12 +316,19 @@ class Network:
             links = {l.get("id", i) if type(i) == dict else i: l for i, l in enumerate(cfg["links"])}
         else:
             raise ValueError("Invalid network file format. Links could not be parsed.")
+        split_ratios = {}
         for lid, link in links.items():
             if type(link) == list:
                 link = {"nodes": link}
             from_node, to_node = [nodes[n] for n in link.pop("nodes")]
             density = link.pop("density", 0)
+            _ratios = link.pop("split_ratios", None)
             links[lid] = Link(from_node, to_node, FundamentalDiagram(**link), density=density)
+            if _ratios is not None:
+                split_ratios[links[lid]] = _ratios
+        for link, ratios in split_ratios.items():
+            link.set_outgoing_split_ratios(ratios)
+            print(ratios)
         return cls(nodes=nodes.values(), links=links.values())
 
     def insert_node(self, node):
