@@ -288,6 +288,7 @@ class Network:
         self._nodes = [] if nodes is None else nodes
         self._links = [] if links is None else links
         self._mappable = None  # type: plt.cm.ScalarMappable
+        self._max_dt = min((l.length/1000)/l.free_flow_speed for l in links)  # max value that the time step may take
 
     @classmethod
     def from_yaml(cls, file):
@@ -337,6 +338,8 @@ class Network:
         self._links.append(link)
 
     def step(self, dt):
+        if dt > self._max_dt:
+            raise UserWarning("Passed time step " + str(dt) + " greater than recommended maximum: " + str(self._max_dt))
         for node in self._nodes:
             node.compute_flows()
         for link in self._links:
