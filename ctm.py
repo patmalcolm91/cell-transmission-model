@@ -67,7 +67,8 @@ class Node:
 
     def _generate_even_split_ratio_matrix(self):
         m, n = len(self.incoming_links), len(self.outgoing_links)
-        self._split_ratio_matrix = np.full((m, n), fill_value=1/n)
+        split = 1/n if n > 0 else np.nan
+        self._split_ratio_matrix = np.full((m, n), fill_value=split)
 
     @property
     def split_ratio_matrix(self):
@@ -345,6 +346,15 @@ class Network:
         for link in self._links:
             link.update_state(dt)
 
+    def get_records(self):
+        link_records = [{"link_id": link.id,
+                         "density": link.density,
+                         "flow": link.flow,
+                         "speed": link.speed} for link in self._links]
+        node_records = [{"node_id": node.id,
+                         "split_ratios": node.split_ratio_matrix} for node in self._nodes]
+        return link_records + node_records
+
     @property
     def colorbar_mappable(self):
         if self._mappable is not None:
@@ -380,10 +390,16 @@ class Simulation:
         self.end_time = end_time
         self.time = start_time
         self.step_size = step_size
+        self._records = []
+
+    @property
+    def records(self):
+        return self._records
 
     def step(self):
         self.time += self.step_size
         self.net.step(self.step_size)
+        self._records += [{"time": self.time, **record} for record in self.net.get_records()]
 
     def plot(self, ax=None, timestamp_loc="upper left", exaggeration=1, **kwargs):
         if ax is None:
