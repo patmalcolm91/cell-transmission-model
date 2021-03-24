@@ -7,7 +7,7 @@ import numpy as np
 import yaml
 import matplotlib.pyplot as plt
 from matplotlib.patches import Arrow
-from _Util import LineDataUnits, CircleDataUnits, EventManager
+from ._Util import LineDataUnits, CircleDataUnits, EventManager
 from matplotlib.colors import Normalize
 from matplotlib.offsetbox import AnchoredText
 import warnings
