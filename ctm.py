@@ -308,7 +308,7 @@ class Network:
             if node.get("sink", False):
                 nodes[nid] = SinkNode(node["pos"], id=nid)
             elif node.get("source", False):
-                nodes[nid] = SourceNode(node["pos"], node["inflow"], id=nid)
+                nodes[nid] = SourceNode(node["pos"], node.get("inflow", 0), id=nid)
             else:
                 nodes[nid] = Node(node["pos"], id=nid)
         # load links
