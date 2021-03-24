@@ -1,0 +1,17 @@
+inflows:
+  - node: 0
+    flow: 1800
+    start_time: 0
+    end_time: 1
+  - node: 0
+    flow: 300
+    start_time: 1
+    end_time: 2
+  - node: 0
+    flow: 900
+    start_time: 2
+    end_time: null
+split_ratios:
+  - link: "2->branch"
+    split_ratios: [0.9, 0.1]
+    start_time: 1.5

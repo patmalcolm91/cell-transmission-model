@@ -4,6 +4,7 @@ Various utility functions and classes.
 
 from matplotlib.lines import Line2D
 from matplotlib.patches import Circle
+import numpy as np
 
 
 class LineDataUnits(Line2D):
@@ -86,6 +87,28 @@ class CircleDataUnits(Circle):
 
     _linewidth = property(_get_lw, _set_lw)
     _dashSeq = property(_get_dashes, _set_dashes)
+
+
+class EventManager:
+    """Convenience class for managing and querying a list of abstract 'events' with start and end times."""
+    def __init__(self):
+        self._events = []  # list of (start_time, end_time, event) tuples
+        self._prev_time = None
+
+    def add(self, event, start_time, end_time=np.inf):
+        """Add an event that is active between the specified start and end times"""
+        self._events.append((start_time, end_time, event))
+
+    def get_active(self, time):
+        """Return all events which are active at the specified time."""
+        return [e for t0, t1, e in self._events if t0 <= time < t1]
+
+    def get_newly_active_and_inactive(self, time):
+        """Return events which changed from inactive to active or vice versa since the last call to this function."""
+        newly_active = [e for t0, t1, e in self._events if t0 <= time < t1 and (self._prev_time is None or self._prev_time < t0)]
+        newly_inactive = [] if self._prev_time is None else [e for t0, t1, e in self._events if self._prev_time < t1 <= time]
+        self._prev_time = time
+        return newly_active, newly_inactive
 
 
 if __name__ == "__main__":

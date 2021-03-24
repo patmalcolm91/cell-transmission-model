@@ -7,7 +7,7 @@ import numpy as np
 import yaml
 import matplotlib.pyplot as plt
 from matplotlib.patches import Arrow
-from _Util import LineDataUnits, CircleDataUnits
+from _Util import LineDataUnits, CircleDataUnits, EventManager
 from matplotlib.colors import Normalize
 from matplotlib.offsetbox import AnchoredText
 import warnings
@@ -332,6 +332,18 @@ class Network:
             link.set_outgoing_split_ratios(ratios)
         return cls(nodes=nodes.values(), links=links.values())
 
+    def get_node_by_id(self, id):
+        for node in self._nodes:
+            if node.id == id:
+                return node
+        raise IndexError("No node with id " + str(id) + " found in network.")
+
+    def get_link_by_id(self, id):
+        for link in self._links:
+            if link.id == id:
+                return link
+        raise IndexError("No node with id " + str(id) + " found in network.")
+
     def insert_node(self, node):
         self._nodes.append(node)
 
@@ -384,20 +396,59 @@ class Network:
 
 
 class Simulation:
-    def __init__(self, net, start_time=0, end_time=24, step_size=0.25):
+    def __init__(self, net, start_time=0, end_time=24, step_size=0.25, scenario_file=None):
         self.net = net
         self.start_time = start_time
         self.end_time = end_time
         self.time = start_time
         self.step_size = step_size
         self._records = []
+        self._dynamic_inflows = EventManager()
+        self._dynamic_split_ratios = EventManager()
+        if scenario_file is not None:
+            self.load_scenario_from_file(scenario_file)
 
     @property
     def records(self):
         return self._records
 
+    def load_scenario_from_file(self, file):
+        with open(file) as f:
+            scenario = yaml.load(f, Loader=yaml.Loader)
+        inflows = scenario.get("inflows", [])
+        split_ratios = scenario.get("split_ratios", [])
+        for inflow in inflows:
+            start_time = inflow.pop("start_time")
+            end_time = inflow.pop("end_time", np.inf)
+            end_time = end_time if end_time is not None else np.inf
+            self._dynamic_inflows.add(inflow, start_time=start_time, end_time=end_time)
+        for splits in split_ratios:
+            start_time = splits.pop("start_time")
+            if "end_time" in splits:
+                raise NotImplementedError("Specification of end_time for split ratios not supported.")
+            self._dynamic_split_ratios.add(splits, start_time=start_time)
+
+    def _update_dynamic_flows(self):
+        newly_active_inflows, newly_inactive_inflows = self._dynamic_inflows.get_newly_active_and_inactive(self.time)
+        for flow in newly_active_inflows:
+            self.net.get_node_by_id(flow["node"]).inflow += flow["flow"]
+        for flow in newly_inactive_inflows:
+            self.net.get_node_by_id(flow["node"]).inflow -= flow["flow"]
+
+    def _update_dynamic_split_ratios(self):
+        newly_active, _ = self._dynamic_split_ratios.get_newly_active_and_inactive(self.time)
+        for splits in newly_active:
+            if "node" in splits and "link" not in splits:
+                self.net.get_node_by_id(splits["node"]).split_ratio_matrix = splits["split_ratios"]
+            elif "link" in splits and "node" not in splits:
+                self.net.get_link_by_id(splits["link"]).set_outgoing_split_ratios(splits["split_ratios"])
+            else:
+                raise UserWarning("Invalid definition of split ratios in scenario file.")
+
     def step(self):
         self.time += self.step_size
+        self._update_dynamic_flows()
+        self._update_dynamic_split_ratios()
         self.net.step(self.step_size)
         self._records += [{"time": self.time, **record} for record in self.net.get_records()]
 
@@ -425,6 +476,7 @@ if __name__ == "__main__":
     fig, ax = plt.subplots()
     net.plot_colorbar(ax)
     sim = Simulation(net, start_time=0, end_time=24, step_size=1/30)
+    sim.load_scenario_from_file("test_scenario.yaml")
     a = FuncAnimation(fig, anim, fargs=(ax, sim), blit=True, interval=100)
 
     # net.plot()
