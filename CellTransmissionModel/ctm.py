@@ -7,7 +7,7 @@ import numpy as np
 import yaml
 import matplotlib.pyplot as plt
 from matplotlib.patches import Arrow
-from ._Util import LineDataUnits, CircleDataUnits, EventManager
+from CellTransmissionModel._Util import LineDataUnits, CircleDataUnits, EventManager
 from matplotlib.colors import Normalize
 from matplotlib.offsetbox import AnchoredText
 import warnings
@@ -466,7 +466,7 @@ class Simulation:
 
 if __name__ == "__main__":
     from matplotlib.animation import FuncAnimation
-    net = Network.from_yaml("test_net.yaml")
+    net = Network.from_yaml("../test_net.yaml")
 
     def anim(t, ax, sim):
         artists = sim.plot(ax, exaggeration=1000)
@@ -476,7 +476,7 @@ if __name__ == "__main__":
     fig, ax = plt.subplots()
     net.plot_colorbar(ax)
     sim = Simulation(net, start_time=0, end_time=24, step_size=1/30)
-    sim.load_scenario_from_file("test_scenario.yaml")
+    sim.load_scenario_from_file("../test_scenario.yaml")
     a = FuncAnimation(fig, anim, fargs=(ax, sim), blit=True, interval=100)
 
     # net.plot()
