@@ -456,7 +456,7 @@ class Simulation:
         if ax is None:
             ax = plt.gca()  # type: plt.Axes
         artists = []
-        artists += net.plot(ax, exaggeration=exaggeration, **kwargs)
+        artists += self.net.plot(ax, exaggeration=exaggeration, **kwargs)
         if timestamp_loc is not None:
             h, m, s = int(self.time), round((self.time*60) % 60)%60, round((self.time*3600) % 60)%60
             artists.append(AnchoredText("{:02.0f}:{:02.0f}:{:02.0f}".format(h, m, s), loc=timestamp_loc))
