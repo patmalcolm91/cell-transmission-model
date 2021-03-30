@@ -52,6 +52,18 @@ class AbstractRoad:
                                         fundamental_diagram=copy(self._fundamental_diagram_template_b)))
                 self._twin_links[self._links[-2]] = self._links[-1]
                 self._twin_links[self._links[-1]] = self._links[-2]
+        if isinstance(self.from_intersection, AbstractSourceSink):
+            self._links.append(Link(from_node=self.from_intersection.source_node, to_node=self.nodes[0],
+                                    fundamental_diagram=self._fundamental_diagram_template_a))
+            if not self.oneway:
+                self._links.append(Link(from_node=self._nodes[0], to_node=self.from_intersection.sink_node,
+                                        fundamental_diagram=self._fundamental_diagram_template_b))
+        if isinstance(self.to_intersection, AbstractSourceSink):
+            self._links.append(Link(from_node=self._nodes[-1], to_node=self.to_intersection.sink_node,
+                                    fundamental_diagram=self._fundamental_diagram_template_a))
+            if not self.oneway:
+                self._links.append(Link(from_node=self.to_intersection.source_node, to_node=self._nodes[-1],
+                                        fundamental_diagram=self._fundamental_diagram_template_b))
 
     @property
     def nodes(self):
@@ -82,9 +94,12 @@ class _AbstractJunction:
 
 
 class AbstractSourceSink(_AbstractJunction):
-    def __init__(self, location, inflow=0):
+    def __init__(self, location, inflow=0, *, id=None):
         super().__init__(location)
         self.inflow = inflow
+        self.source_node = SourceNode(self.location, self.inflow, id=str(id)+".source")
+        self.sink_node = SinkNode(self.location, id=str(id)+".sink")
+        self._links = [self.source_node, self.sink_node]
 
     def bake(self):
         pass
