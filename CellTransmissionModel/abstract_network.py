@@ -160,7 +160,7 @@ if __name__ == "__main__":
     sim = Simulation(anet.net, step_size=0.0001)
 
     def anim(t, ax, sim):
-        artists = sim.plot(ax, exaggeration=1)
+        artists = sim.plot(ax, exaggeration=1, half_arrows=True)
         sim.step()
         return artists
 

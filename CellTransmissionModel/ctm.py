@@ -6,7 +6,7 @@ Implementation of the CTM as described here:
 import numpy as np
 import yaml
 import matplotlib.pyplot as plt
-from matplotlib.patches import Arrow
+from matplotlib.patches import Arrow, Polygon
 from CellTransmissionModel._Util import LineDataUnits, CircleDataUnits, EventManager
 from matplotlib.colors import Normalize
 from matplotlib.offsetbox import AnchoredText
@@ -248,6 +248,7 @@ class Link:
         self.heading = np.arctan2(self._vec[1], self._vec[0])
         self.length = np.linalg.norm(self._vec)
         self._unit_vector = self._vec / self.length
+        self._normal_vector = np.array([self._unit_vector[1], -self._unit_vector[0]])  # facing right
         self._upstream_flow = None
         self._downstream_flow = None
 
@@ -319,12 +320,20 @@ class Link:
     def update_state(self, dt):
         self.density = self.density + (dt / (self.length / 1000)) * (self.upstream_flow - self.downstream_flow)
 
-    def plot(self, ax=None, exaggeration=1, **kwargs):
+    def plot(self, ax=None, exaggeration=1, half_arrows=False, **kwargs):
         if ax is None:
             ax = plt.gca()  # type: plt.gca()
         start = self.from_node.pos + exaggeration*self.from_node.radius*self._unit_vector
         delta = (self.length - exaggeration*(self.from_node.radius + self.to_node.radius))*self._unit_vector
-        artist = Arrow(*start, *delta, **{"width": exaggeration*self.flow_capacity*3.2/1800, **kwargs})
+        if half_arrows:
+            _w = kwargs.pop("width", exaggeration*self.flow_capacity*3.2/1800)
+            coords = [start, start+delta,
+                      start+0.7*delta+self._normal_vector*1.4*_w,
+                      start+0.7*delta+self._normal_vector*_w,
+                      start+self._normal_vector*_w]
+            artist = Polygon(coords, **kwargs)
+        else:
+            artist = Arrow(*start, *delta, **{"width": exaggeration*self.flow_capacity*3.2/1800, **kwargs})
         ax.add_patch(artist)
         return [artist]
 
@@ -427,14 +436,15 @@ class Network:
         cb = plt.colorbar(self.colorbar_mappable, ax=ax)
         cb.set_label("Flow (veh/h)")
 
-    def plot(self, ax=None, exaggeration=1):
+    def plot(self, ax=None, exaggeration=1, half_arrows=False):
         if ax is None:
             ax = plt.gca()  # type: plt.Axes
         artists = []
         for node in self._nodes:
             artists += node.plot(ax, exaggeration=exaggeration)
         for link in self._links:
-            artists += link.plot(ax, exaggeration=exaggeration, color=self.colorbar_mappable.to_rgba(link.flow))
+            artists += link.plot(ax, exaggeration=exaggeration, color=self.colorbar_mappable.to_rgba(link.flow),
+                                 half_arrows=half_arrows)
         ax.set_aspect("equal")
         ax.autoscale_view()
         return artists
@@ -497,11 +507,11 @@ class Simulation:
         self.net.step(self.step_size)
         self._records += [{"time": self.time, **record} for record in self.net.get_records()]
 
-    def plot(self, ax=None, timestamp_loc="upper left", exaggeration=1, **kwargs):
+    def plot(self, ax=None, timestamp_loc="upper left", exaggeration=1, half_arrows=False, **kwargs):
         if ax is None:
             ax = plt.gca()  # type: plt.Axes
         artists = []
-        artists += self.net.plot(ax, exaggeration=exaggeration, **kwargs)
+        artists += self.net.plot(ax, exaggeration=exaggeration, half_arrows=half_arrows, **kwargs)
         if timestamp_loc is not None:
             h, m, s = int(self.time), round((self.time*60) % 60)%60, round((self.time*3600) % 60)%60
             artists.append(AnchoredText("{:02.0f}:{:02.0f}:{:02.0f}".format(h, m, s), loc=timestamp_loc))
