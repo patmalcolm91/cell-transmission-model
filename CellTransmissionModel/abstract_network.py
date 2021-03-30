@@ -5,7 +5,8 @@ Classes and utilities for defining a network at a more abstract level (roads and
 import numpy as np
 import matplotlib.pyplot as plt
 from shapely.geometry import LineString, Point
-from CellTransmissionModel.ctm import Network, Node, Link, FundamentalDiagram
+from abc import abstractmethod
+from CellTransmissionModel.ctm import Network, Node, SourceNode, SinkNode, Link, FundamentalDiagram
 from copy import copy
 
 
@@ -74,15 +75,14 @@ class AbstractRoad:
         return self._links
 
 
-class AbstractIntersection:
-    def __init__(self, location, radius=8):
+class _AbstractJunction:
+    def __init__(self, location):
         self.location = location if isinstance(location, np.ndarray) else np.array(location)
-        self.radius = radius
         self._nodes = []
         self._links = []
 
+    @abstractmethod
     def bake(self):
-        # TODO: implement this
         pass
 
     @property
@@ -92,6 +92,25 @@ class AbstractIntersection:
     @property
     def links(self):
         return self._links
+
+
+class AbstractSourceSink(_AbstractJunction):
+    def __init__(self, location, inflow=0):
+        super().__init__(location)
+        self.inflow = inflow
+
+    def bake(self):
+        pass
+
+
+class AbstractIntersection(_AbstractJunction):
+    def __init__(self, location, radius=8):
+        super().__init__(location)
+        self.radius = radius
+
+    def bake(self):
+        # TODO: implement this
+        pass
 
 
 class AbstractNetwork:
