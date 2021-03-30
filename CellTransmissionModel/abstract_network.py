@@ -142,7 +142,9 @@ class AbstractNetwork:
 
 
 if __name__ == "__main__":
+    sourcesink1 = AbstractSourceSink((-20, 0), 0)
     rd = AbstractRoad([(0, 0), (100, 0), (150, 50)])
-    anet = AbstractNetwork(roads=[rd], intersections=[])
+    rd.from_intersection = sourcesink1
+    anet = AbstractNetwork(roads=[rd], intersections=[sourcesink1])
     anet.net.plot()
     plt.show()
