@@ -39,6 +39,8 @@ class AbstractRoad:
         return road
 
     def bake(self):
+        if self.from_intersection is None or self.to_intersection is None:
+            raise UserWarning("All AbstractRoad objects must start and end with either an intersection or an AbstractSourceSink object.")
         ls = self._linestring
         ds = np.linspace(0, ls.length, int(np.ceil(ls.length/self.max_link_length)+1))
         pts = [ls.interpolate(d) for d in ds]
@@ -58,12 +60,17 @@ class AbstractRoad:
             if not self.oneway:
                 self._links.append(Link(from_node=self._nodes[0], to_node=self.from_intersection.sink_node,
                                         fundamental_diagram=self._fundamental_diagram_template_b))
+                self._links[-2].set_outgoing_split_ratios_by_reference({self._links[-1]: 0})  # disable u-turn
         if isinstance(self.to_intersection, AbstractSourceSink):
             self._links.append(Link(from_node=self._nodes[-1], to_node=self.to_intersection.sink_node,
                                     fundamental_diagram=self._fundamental_diagram_template_a))
             if not self.oneway:
                 self._links.append(Link(from_node=self.to_intersection.source_node, to_node=self._nodes[-1],
                                         fundamental_diagram=self._fundamental_diagram_template_b))
+                self._links[-1].set_outgoing_split_ratios_by_reference({self._links[-2]: 0})  # disable u-turn
+        # set split ratios (no u-turns)
+        for from_link, to_link in self._twin_links.items():
+            from_link.set_outgoing_split_ratios_by_reference({to_link: 0})
 
     @property
     def nodes(self):
