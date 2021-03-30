@@ -64,11 +64,28 @@ class Node:
         self.incoming_links = []
         self.outgoing_links = []
         self._split_ratio_matrix = None
+        self._manually_set_split_ratios = {}
 
     def _generate_even_split_ratio_matrix(self):
         m, n = len(self.incoming_links), len(self.outgoing_links)
-        split = 1/n if n > 0 else np.nan
-        self._split_ratio_matrix = np.full((m, n), fill_value=split)
+        self._split_ratio_matrix = np.full((m, n), fill_value=np.nan, dtype=np.float)
+        # populate the ratios from refs
+        for (from_link, to_link), ratio in self._manually_set_split_ratios.items():
+            i = self.incoming_links.index(from_link)
+            j = self.outgoing_links.index(to_link)
+            self._split_ratio_matrix[i, j] = ratio
+        # fill non-specified cells of matrix
+        _row_splits = (1 - np.nansum(self._split_ratio_matrix, axis=1)) / np.sum(np.isnan(self._split_ratio_matrix), axis=1)
+        fill_vals = np.tile(_row_splits.reshape((1, m)).transpose(), (1, n))
+        self._split_ratio_matrix = np.where(np.isnan(self._split_ratio_matrix), fill_vals, self._split_ratio_matrix)
+        # check for problems
+        self._check_split_ratio_matrix()
+
+    def _check_split_ratio_matrix(self):
+        if np.any(self._split_ratio_matrix < -EPS):
+            raise ValueError("Split ratio matrix values must be non-negative.")
+        if not np.abs(1 - self._split_ratio_matrix.sum(axis=1)).all() < EPS:
+            raise ValueError("Split ratio matrix row sums must be equal to 1.")
 
     @property
     def split_ratio_matrix(self):
@@ -82,6 +99,18 @@ class Node:
         if matrix.shape != (len(self.incoming_links), len(self.outgoing_links)):
             warnings.warn("Specified split ratio matrix does not match number of incoming and outgoing links.")
         self._split_ratio_matrix = matrix
+
+    def set_split_ratios_by_reference(self, refs):
+        """
+        Set the split ratio matrix values by passing a dict with the signature {(Link, Link): ratio}
+
+        :param refs: dict, with keys being tuples of two Link objects (from, to) and values being the ratio (float)
+        :return: None
+        """
+        for from_link, to_link in refs.keys():
+            if from_link not in self.incoming_links or to_link not in self.outgoing_links:
+                raise UserWarning("Trying to set split ratios for link(s) which are not associated with node.")
+        self._manually_set_split_ratios.update(refs)
 
     def set_link_outgoing_split_ratios(self, link, ratios):
         """
@@ -154,6 +183,9 @@ class SourceNode(Node):
         super().__init__(pos, id=id, radius=radius)
         self.inflow = inflow
 
+    def _check_split_ratio_matrix(self):
+        pass
+
     def compute_flows(self):
         if len(self.incoming_links) > 0:
             raise UserWarning("Source nodes are not allowed to have incoming links.")
@@ -179,6 +211,9 @@ class SourceNode(Node):
 class SinkNode(Node):
     def __init__(self, pos, *, id=None, radius=1):
         super().__init__(pos, id=id, radius=radius)
+
+    def _check_split_ratio_matrix(self):
+        pass
 
     def compute_flows(self):
         if len(self.outgoing_links) > 0:
@@ -270,6 +305,16 @@ class Link:
         Ratios should be defined from left to right w.r.t. this link's direction. Ratios are auto-normalized.
         """
         self.to_node.set_link_outgoing_split_ratios(self, ratios)
+
+    def set_outgoing_split_ratios_by_reference(self, refs):
+        """
+        Set the split ratio matrix values from this link to others by passing a dict with the signature {Link: ratio}
+
+        :param refs: dict, with keys being the to_link and values being the ratio (float)
+        :return: None
+        """
+        refs = {(self, to_link): ratio for to_link, ratio in refs.items()}
+        self.to_node.set_split_ratios_by_reference(refs)
 
     def update_state(self, dt):
         self.density = self.density + (dt / (self.length / 1000)) * (self.upstream_flow - self.downstream_flow)
