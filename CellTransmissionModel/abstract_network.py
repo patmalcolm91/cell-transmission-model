@@ -149,9 +149,22 @@ class AbstractNetwork:
 
 
 if __name__ == "__main__":
-    sourcesink1 = AbstractSourceSink((-20, 0), 0)
+    from matplotlib.animation import FuncAnimation
+    from CellTransmissionModel.ctm import Simulation
+    sourcesink1 = AbstractSourceSink((-20, 0), 1000)
+    sourcesink2 = AbstractSourceSink((170, 50), 0)
     rd = AbstractRoad([(0, 0), (100, 0), (150, 50)])
     rd.from_intersection = sourcesink1
-    anet = AbstractNetwork(roads=[rd], intersections=[sourcesink1])
-    anet.net.plot()
+    rd.to_intersection = sourcesink2
+    anet = AbstractNetwork(roads=[rd], intersections=[sourcesink1, sourcesink2])
+    sim = Simulation(anet.net, step_size=0.0001)
+
+    def anim(t, ax, sim):
+        artists = sim.plot(ax, exaggeration=1)
+        sim.step()
+        return artists
+
+    fig, ax = plt.subplots()  # type: plt.Figure, plt.Axes
+    a = FuncAnimation(fig, anim, fargs=(ax, sim), blit=True, interval=100)
+    # anet.net.plot()
     plt.show()
