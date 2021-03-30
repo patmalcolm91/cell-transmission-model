@@ -99,7 +99,7 @@ class AbstractSourceSink(_AbstractJunction):
         self.inflow = inflow
         self.source_node = SourceNode(self.location, self.inflow, id=str(id)+".source")
         self.sink_node = SinkNode(self.location, id=str(id)+".sink")
-        self._links = [self.source_node, self.sink_node]
+        self._nodes = [self.source_node, self.sink_node]
 
     def bake(self):
         pass
