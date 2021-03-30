@@ -11,12 +11,11 @@ from copy import copy
 
 
 class AbstractRoad:
-    def __init__(self, alignment, width=3.2, oneway=False, fundamental_diagram_a=None, fundamental_diagram_b=None, max_link_length=10, width_split=0.5, *, id=None):
+    def __init__(self, alignment, oneway=False, fundamental_diagram_a=None, fundamental_diagram_b=None, max_link_length=10, *, id=None):
         """
         Initialize an AbstractRoad object, which can be used to easily generate consecutive CTM links.
 
         :param alignment: list or np.ndarray of n points making up alignment
-        :param width: width of road, or a list of n-1 widths corresponding to the segments between the alignment points
         :param oneway: whether or not the road is one-way
         """
         self.id = id
@@ -25,31 +24,19 @@ class AbstractRoad:
         self.alignment = alignment if isinstance(alignment, np.ndarray) else np.array(alignment)
         self._linestring = LineString(self.alignment)
         self._twin_links = {}  # dict mapping links to their "twins" (same portion of alignment, but opposite direction)
-        if type(width) in [int, float]:
-            self._widths = np.full(len(self.alignment)-1, width)
-        else:
-            if len(width) != len(self.alignment)-1:
-                raise ValueError("Number of widths provided does not match number of segments in alignment.")
-            self._widths = width if isinstance(width, np.ndarray) else np.array(width)
         self.oneway = oneway
         self._nodes = []  # type: list[Node]
         self._links = []  # type: list[Link]
-        self.max_link_length =  max_link_length
-        self.width_split = width_split
+        self.max_link_length = max_link_length
         self.from_intersection = None
         self.to_intersection = None
 
     @classmethod
-    def between_intersections(cls, from_intersection, to_intersection, width=3.2, oneway=False, max_link_length=10, width_split=0.5):
+    def between_intersections(cls, from_intersection, to_intersection, oneway=False, max_link_length=10):
         from_pt, to_pt = from_intersection.location, to_intersection.location
-        road = cls([from_pt, to_pt], width=width, oneway=oneway, max_link_length=max_link_length, width_split=width_split)
+        road = cls([from_pt, to_pt], oneway=oneway, max_link_length=max_link_length)
         road.from_intersection, road.to_intersection = from_intersection, to_intersection
         return road
-
-    def width_at_distance(self, distance):
-        ls = self._linestring
-        vertex_ds = np.cumsum([Point(c).distance(Point(c2)) for c, c2 in zip(ls.coords[1:], ls.coords[:-1])])
-        return self._widths[np.searchsorted(vertex_ds, distance)-1]
 
     def bake(self):
         ls = self._linestring
