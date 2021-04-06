@@ -152,8 +152,22 @@ class AbstractIntersection(_AbstractJunction):
         self.radius = radius
 
     def bake(self):
-        # TODO: implement this
-        pass
+        # TODO: replace this logic with a real intersection layout
+        self.nodes.append(Node(self.location, id=str(self.id)+".DUMMY"))
+        center_node = self.nodes[-1]
+        for road, end in zip(self._connecting_roads, self._connecting_roads_ends):
+            if end == 0:
+                self._links.append(Link(from_node=center_node, to_node=road.nodes[end], fundamental_diagram=FundamentalDiagram()))
+                if not road.oneway:
+                    self._links.append(Link(from_node=road.nodes[end], to_node=center_node, fundamental_diagram=FundamentalDiagram()))
+                    self._links[-2].set_outgoing_split_ratios_by_reference({self._links[-1]: 0})  # disable u-turn
+                    self._links[-1].set_outgoing_split_ratios_by_reference({self._links[-2]: 0})  # disable u-turn
+            elif end == -1:
+                self._links.append(Link(from_node=road.nodes[end], to_node=center_node, fundamental_diagram=FundamentalDiagram()))
+                if not road.oneway:
+                    self._links.append(Link(from_node=center_node, to_node=road.nodes[end], fundamental_diagram=FundamentalDiagram()))
+                    self._links[-1].set_outgoing_split_ratios_by_reference({self._links[-2]: 0})  # disable u-turn
+                    self._links[-2].set_outgoing_split_ratios_by_reference({self._links[-1]: 0})  # disable u-turn
 
 
 class AbstractNetwork:
@@ -187,10 +201,14 @@ if __name__ == "__main__":
     from CellTransmissionModel.ctm import Simulation
     sourcesink1 = AbstractSourceSink((-20, 0), 1000)
     sourcesink2 = AbstractSourceSink((170, 50), 0)
-    rd = AbstractRoad([(0, 0), (100, 0), (150, 50)])
-    rd.from_intersection = sourcesink1
-    rd.to_intersection = sourcesink2
-    anet = AbstractNetwork(roads=[rd], intersections=[sourcesink1, sourcesink2])
+    rd1 = AbstractRoad([(0, 0), (92, 0)])
+    intersection = AbstractIntersection((100, 0), radius=8)
+    rd2 = AbstractRoad([(108, 0), (150, 50)])
+    rd1.from_intersection = sourcesink1
+    rd1.to_intersection = intersection
+    rd2.from_intersection = intersection
+    rd2.to_intersection = sourcesink2
+    anet = AbstractNetwork(roads=[rd1, rd2], intersections=[sourcesink1, intersection, sourcesink2])
     sim = Simulation(anet.net, step_size=0.0001)
 
     def anim(t, ax, sim):
