@@ -28,8 +28,30 @@ class AbstractRoad:
         self._nodes = []  # type: list[Node]
         self._links = []  # type: list[Link]
         self.max_link_length = max_link_length
-        self.from_intersection = None
-        self.to_intersection = None
+        self._from_intersection = None
+        self._to_intersection = None
+
+    @property
+    def from_intersection(self):
+        return self._from_intersection
+
+    @from_intersection.setter
+    def from_intersection(self, intersection):
+        if self._from_intersection is not None:
+            raise UserWarning("Trying to overwrite AbstractRoad's 'from_intersection', but it can only be set once.")
+        self._from_intersection = intersection
+        self._from_intersection.connect_road_outgoing(self)
+
+    @property
+    def to_intersection(self):
+        return self._to_intersection
+
+    @to_intersection.setter
+    def to_intersection(self, intersection):
+        if self._to_intersection is not None:
+            raise UserWarning("Trying to overwrite AbstractRoad's 'to_intersection', but it can only be set once.")
+        self._to_intersection = intersection
+        self._to_intersection.connect_road_incoming(self)
 
     @classmethod
     def between_intersections(cls, from_intersection, to_intersection, oneway=False, max_link_length=10):
@@ -54,20 +76,6 @@ class AbstractRoad:
                                         fundamental_diagram=copy(self._fundamental_diagram_template_b)))
                 self._twin_links[self._links[-2]] = self._links[-1]
                 self._twin_links[self._links[-1]] = self._links[-2]
-        if isinstance(self.from_intersection, AbstractSourceSink):
-            self._links.append(Link(from_node=self.from_intersection.source_node, to_node=self.nodes[0],
-                                    fundamental_diagram=self._fundamental_diagram_template_a))
-            if not self.oneway:
-                self._links.append(Link(from_node=self._nodes[0], to_node=self.from_intersection.sink_node,
-                                        fundamental_diagram=self._fundamental_diagram_template_b))
-                self._links[-2].set_outgoing_split_ratios_by_reference({self._links[-1]: 0})  # disable u-turn
-        if isinstance(self.to_intersection, AbstractSourceSink):
-            self._links.append(Link(from_node=self._nodes[-1], to_node=self.to_intersection.sink_node,
-                                    fundamental_diagram=self._fundamental_diagram_template_a))
-            if not self.oneway:
-                self._links.append(Link(from_node=self.to_intersection.source_node, to_node=self._nodes[-1],
-                                        fundamental_diagram=self._fundamental_diagram_template_b))
-                self._links[-1].set_outgoing_split_ratios_by_reference({self._links[-2]: 0})  # disable u-turn
         # set split ratios (no u-turns)
         for from_link, to_link in self._twin_links.items():
             from_link.set_outgoing_split_ratios_by_reference({to_link: 0})
@@ -84,6 +92,8 @@ class AbstractRoad:
 class _AbstractJunction:
     def __init__(self, location):
         self.location = location if isinstance(location, np.ndarray) else np.array(location)
+        self._connecting_roads = []
+        self._connecting_roads_ends = []  # 0 if the beginning of the road connects, -1 if the end of the road connects
         self._nodes = []
         self._links = []
 
@@ -99,17 +109,40 @@ class _AbstractJunction:
     def links(self):
         return self._links
 
+    def connect_road_incoming(self, road):
+        self._connecting_roads.append(road)
+        self._connecting_roads_ends.append(-1)
+
+    def connect_road_outgoing(self, road):
+        self._connecting_roads.append(road)
+        self._connecting_roads_ends.append(0)
+
 
 class AbstractSourceSink(_AbstractJunction):
-    def __init__(self, location, inflow=0, *, id=None):
+    def __init__(self, location, inflow=0, *, fundamental_diagram=None, id=None):
         super().__init__(location)
         self.inflow = inflow
+        self.fundamental_diagram = fundamental_diagram if fundamental_diagram is not None else FundamentalDiagram()
         self.source_node = SourceNode(self.location, self.inflow, id=str(id)+".source")
         self.sink_node = SinkNode(self.location, id=str(id)+".sink")
         self._nodes = [self.source_node, self.sink_node]
 
     def bake(self):
-        pass
+        for road, end in zip(self._connecting_roads, self._connecting_roads_ends):
+            if end == 0:
+                self._links.append(Link(from_node=self.source_node, to_node=road.nodes[0],
+                                        fundamental_diagram=self.fundamental_diagram))
+                if not road.oneway:
+                    self._links.append(Link(from_node=road.nodes[0], to_node=self.sink_node,
+                                            fundamental_diagram=self.fundamental_diagram))
+                    self._links[-2].set_outgoing_split_ratios_by_reference({self._links[-1]: 0})  # disable u-turn
+            elif end == -1:
+                self._links.append(Link(from_node=road.nodes[-1], to_node=self.sink_node,
+                                        fundamental_diagram=self.fundamental_diagram))
+                if not road.oneway:
+                    self._links.append(Link(from_node=self.source_node, to_node=road.nodes[-1],
+                                            fundamental_diagram=self.fundamental_diagram))
+                    self._links[-1].set_outgoing_split_ratios_by_reference({self._links[-2]: 0})  # disable u-turn
 
 
 class AbstractIntersection(_AbstractJunction):
