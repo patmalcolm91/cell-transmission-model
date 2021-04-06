@@ -90,8 +90,9 @@ class AbstractRoad:
 
 
 class _AbstractJunction:
-    def __init__(self, location):
+    def __init__(self, location, *, id=None):
         self.location = location if isinstance(location, np.ndarray) else np.array(location)
+        self.id = id
         self._connecting_roads = []
         self._connecting_roads_ends = []  # 0 if the beginning of the road connects, -1 if the end of the road connects
         self._nodes = []
@@ -120,7 +121,7 @@ class _AbstractJunction:
 
 class AbstractSourceSink(_AbstractJunction):
     def __init__(self, location, inflow=0, *, fundamental_diagram=None, id=None):
-        super().__init__(location)
+        super().__init__(location, id=id)
         self.inflow = inflow
         self.fundamental_diagram = fundamental_diagram if fundamental_diagram is not None else FundamentalDiagram()
         self.source_node = SourceNode(self.location, self.inflow, id=str(id)+".source")
@@ -146,8 +147,8 @@ class AbstractSourceSink(_AbstractJunction):
 
 
 class AbstractIntersection(_AbstractJunction):
-    def __init__(self, location, radius=8):
-        super().__init__(location)
+    def __init__(self, location, radius=8, *, id=None):
+        super().__init__(location, id=id)
         self.radius = radius
 
     def bake(self):
