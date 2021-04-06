@@ -118,6 +118,20 @@ class _AbstractJunction:
         self._connecting_roads.append(road)
         self._connecting_roads_ends.append(0)
 
+    def _road_node_incoming(self, road):
+        idx = self._connecting_roads.index(road)
+        end = self._connecting_roads_ends[idx]
+        if end == 0 and road.oneway:
+            return None
+        return road.nodes[end]
+
+    def _road_node_outgoing(self, road):
+        idx = self._connecting_roads.index(road)
+        end = self._connecting_roads_ends[idx]
+        if end == -1 and road.oneway:
+            return None
+        return road.nodes[end]
+
 
 class AbstractSourceSink(_AbstractJunction):
     def __init__(self, location, inflow=0, *, fundamental_diagram=None, id=None):
@@ -129,21 +143,17 @@ class AbstractSourceSink(_AbstractJunction):
         self._nodes = [self.source_node, self.sink_node]
 
     def bake(self):
-        for road, end in zip(self._connecting_roads, self._connecting_roads_ends):
-            if end == 0:
-                self._links.append(Link(from_node=self.source_node, to_node=road.nodes[0],
+        for road in self._connecting_roads:
+            incoming_node = self._road_node_incoming(road)
+            outgoing_node = self._road_node_outgoing(road)
+            if incoming_node is not None:
+                self._links.append(Link(from_node=incoming_node, to_node=self.sink_node,
                                         fundamental_diagram=self.fundamental_diagram))
-                if not road.oneway:
-                    self._links.append(Link(from_node=road.nodes[0], to_node=self.sink_node,
-                                            fundamental_diagram=self.fundamental_diagram))
-                    self._links[-2].set_outgoing_split_ratios_by_reference({self._links[-1]: 0})  # disable u-turn
-            elif end == -1:
-                self._links.append(Link(from_node=road.nodes[-1], to_node=self.sink_node,
+            if outgoing_node is not None:
+                self._links.append(Link(from_node=self.source_node, to_node=outgoing_node,
                                         fundamental_diagram=self.fundamental_diagram))
-                if not road.oneway:
-                    self._links.append(Link(from_node=self.source_node, to_node=road.nodes[-1],
-                                            fundamental_diagram=self.fundamental_diagram))
-                    self._links[-1].set_outgoing_split_ratios_by_reference({self._links[-2]: 0})  # disable u-turn
+            if not road.oneway:
+                self._links[-1].set_outgoing_split_ratios_by_reference({self._links[-2]: 0})  # disable u-turn
 
 
 class AbstractIntersection(_AbstractJunction):
