@@ -66,6 +66,9 @@ class Node:
         self._split_ratio_matrix = None
         self._manually_set_split_ratios = {}
 
+    def __repr__(self):
+        return "Node(id="+str(self.id)+"pos=("+str(self.pos[0])+","+str(self.pos[1])+"))"
+
     def _generate_even_split_ratio_matrix(self):
         m, n = len(self.incoming_links), len(self.outgoing_links)
         self._split_ratio_matrix = np.full((m, n), fill_value=np.nan, dtype=np.float)
@@ -251,6 +254,9 @@ class Link:
         self._normal_vector = np.array([self._unit_vector[1], -self._unit_vector[0]])  # facing right
         self._upstream_flow = None
         self._downstream_flow = None
+
+    def __repr__(self):
+        return "Link(id=" + str(self.id) + ")"
 
     @property
     def direction(self):
