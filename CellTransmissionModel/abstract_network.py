@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from shapely.geometry import LineString, Point
 from abc import abstractmethod
 from CellTransmissionModel.ctm import Network, Node, SourceNode, SinkNode, Link, FundamentalDiagram
+from CellTransmissionModel._Util import signed_angle_from_three_points
 from copy import copy
 
 
@@ -168,24 +169,64 @@ class AbstractIntersection(_AbstractJunction):
     def __init__(self, location, radius=8, *, id=None):
         super().__init__(location, id=id)
         self.radius = radius
+        self._lsr_map = dict()
 
     def bake(self):
-        # TODO: replace this logic with a real intersection layout
-        self.nodes.append(Node(self.location, id=str(self.id)+".DUMMY"))
-        center_node = self.nodes[-1]
-        for road, end in zip(self._connecting_roads, self._connecting_roads_ends):
-            if end == 0:
-                self._links.append(Link(from_node=center_node, to_node=road.nodes[end], fundamental_diagram=FundamentalDiagram()))
-                if not road.oneway:
-                    self._links.append(Link(from_node=road.nodes[end], to_node=center_node, fundamental_diagram=FundamentalDiagram()))
-                    self._links[-2].set_outgoing_split_ratios_by_reference({self._links[-1]: 0})  # disable u-turn
-                    self._links[-1].set_outgoing_split_ratios_by_reference({self._links[-2]: 0})  # disable u-turn
-            elif end == -1:
-                self._links.append(Link(from_node=road.nodes[end], to_node=center_node, fundamental_diagram=FundamentalDiagram()))
-                if not road.oneway:
-                    self._links.append(Link(from_node=center_node, to_node=road.nodes[end], fundamental_diagram=FundamentalDiagram()))
-                    self._links[-1].set_outgoing_split_ratios_by_reference({self._links[-2]: 0})  # disable u-turn
-                    self._links[-2].set_outgoing_split_ratios_by_reference({self._links[-1]: 0})  # disable u-turn
+        incoming_roads, outgoing_roads = self.incoming_roads, self.outgoing_roads
+        if len(incoming_roads) > 4 or len(outgoing_roads) > 4:
+            raise NotImplementedError("AbstractIntersection only supports up to 4-way intersections.")
+        elif len(incoming_roads) == 0 or len(outgoing_roads) == 0:
+            raise UserWarning("AbstractIntersection must have at least one incoming and one outgoing road.")
+        for incoming_road in incoming_roads:
+            road_node = self._road_node_incoming(incoming_road)
+            _vec = self.location - road_node.pos
+            _perp = np.array([-_vec[1], _vec[0]])
+            node_ls = Node(road_node.pos + 0.4*_vec, id=str(self.id)+"_"+str(incoming_road.id)+"_ls")
+            node_l = Node(road_node.pos + 0.8*_vec, id=str(self.id)+"_"+str(incoming_road.id)+"_l")
+            node_r = Node(road_node.pos + 0.4*_vec-0.4*_perp, id=str(self.id)+"_"+str(incoming_road.id)+"_r")
+            # classify connections as left, straight, or right
+            self._lsr_map[incoming_road] = dict()
+            for outgoing_road in outgoing_roads:
+                if outgoing_road is incoming_road:
+                    continue
+                # TODO: this approach is restrictive. Should instead use sorted angles to determine lsr relationships?
+                angle = signed_angle_from_three_points(road_node.pos, self.location, self._road_node_outgoing(outgoing_road).pos)
+                if abs(angle) < np.pi/4:
+                    if "s" in self._lsr_map[incoming_road]:
+                        raise UserWarning("More than one straight movement detected from road " + str(incoming_road.id))
+                    self._lsr_map[incoming_road]["s"] = outgoing_road
+                elif angle < -np.pi/4:
+                    if "r" in self._lsr_map[incoming_road]:
+                        raise UserWarning("More than one right movement detected from road " + str(incoming_road.id))
+                    self._lsr_map[incoming_road]["r"] = outgoing_road
+                else:
+                    if "l" in self._lsr_map[incoming_road]:
+                        raise UserWarning("More than one left movement detected from road " + str(incoming_road.id))
+                    self._lsr_map[incoming_road]["l"] = outgoing_road
+            # add links and nodes as necessary
+            if "l" in self._lsr_map[incoming_road] or "s" in self._lsr_map[incoming_road]:
+                self.nodes.append(node_ls)
+                self.links.append(Link(from_node=road_node, to_node=node_ls, fundamental_diagram=FundamentalDiagram()))
+            if "l" in self._lsr_map[incoming_road]:
+                self.nodes.append(node_l)
+                self.links.append(Link(from_node=node_ls, to_node=node_l, fundamental_diagram=FundamentalDiagram()))
+                to_node = self._road_node_outgoing(self._lsr_map[incoming_road]["l"])
+                self.links.append(Link(from_node=node_l, to_node=to_node, fundamental_diagram=FundamentalDiagram()))
+            if "s" in self._lsr_map[incoming_road]:
+                to_node = self._road_node_outgoing(self._lsr_map[incoming_road]["s"])
+                self.links.append(Link(from_node=node_ls, to_node=to_node, fundamental_diagram=FundamentalDiagram()))
+            if "r" in self._lsr_map[incoming_road]:
+                self.nodes.append(node_r)
+                self.links.append(Link(from_node=road_node, to_node=node_r, fundamental_diagram=FundamentalDiagram()))
+                to_node = self._road_node_outgoing(self._lsr_map[incoming_road]["r"])
+                self.links.append(Link(from_node=node_r, to_node=to_node, fundamental_diagram=FundamentalDiagram()))
+        # disable internal u-turns
+        for road in self.incoming_roads:
+            road_node = self._road_node_incoming(road)
+            for inc_link in road_node.incoming_links:
+                for out_link in road_node.outgoing_links:
+                    if inc_link in self.links and out_link in self.links:
+                        inc_link.set_outgoing_split_ratios_by_reference({out_link: 0})
 
 
 class AbstractNetwork:
