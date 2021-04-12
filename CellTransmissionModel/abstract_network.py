@@ -110,6 +110,14 @@ class _AbstractJunction:
     def links(self):
         return self._links
 
+    @property
+    def incoming_roads(self):
+        return [road for road, i in zip(self._connecting_roads, self._connecting_roads_ends) if i == -1 or not road.oneway]
+
+    @property
+    def outgoing_roads(self):
+        return [road for road, i in zip(self._connecting_roads, self._connecting_roads_ends) if i == 0 or not road.oneway]
+
     def connect_road_incoming(self, road):
         self._connecting_roads.append(road)
         self._connecting_roads_ends.append(-1)
