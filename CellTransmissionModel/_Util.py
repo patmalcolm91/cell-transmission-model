@@ -111,6 +111,16 @@ class EventManager:
         return newly_active, newly_inactive
 
 
+def signed_angle_between_vectors(u, v):
+    """Return the signed angle (in radians) between two vectors. CCW (left) is positive."""
+    return np.arctan2(np.dot(np.array([-u[1], u[0]]), v), np.dot(u, v))
+
+
+def signed_angle_from_three_points(start, bend, end):
+    """Return the signed angle (in radians) formed by three points. CCW (left) is positive."""
+    return signed_angle_between_vectors(bend-start, end-bend)
+
+
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots()  # type: plt.Figure, plt.Axes
