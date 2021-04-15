@@ -1,3 +1,8 @@
+fundamental_diagrams:
+  two_lane:
+    flow_capacity: 3600
+    critical_density: 67.4
+    congestion_wave_speed: 6.9
 nodes:
   0:
     pos: [0, 0]
@@ -17,7 +22,8 @@ nodes:
     pos: [30000, 5000]
     sink: True
 links:
-  - [0, 1]
+  - nodes: [0, 1]
+    fundamental_diagram: two_lane
   - [1, 2]
   - nodes: [2, branch]
     split_ratios: [0.3, 0.7]

@@ -295,6 +295,8 @@ class Network:
     def from_yaml(cls, file):
         with open(file) as f:
             cfg = yaml.load(f, Loader=yaml.Loader)
+        # load any named fundamental diagrams
+        fundamental_diagrams = cfg.get("fundamental_diagrams", {})
         # load nodes
         if type(cfg["nodes"]) == dict:
             nodes = cfg["nodes"]
@@ -325,7 +327,9 @@ class Network:
             from_node, to_node = [nodes[n] for n in link.pop("nodes")]
             density = link.pop("density", 0)
             _ratios = link.pop("split_ratios", None)
-            links[lid] = Link(from_node, to_node, FundamentalDiagram(**link), density=density)
+            _fd = link.pop("fundamental_diagram", None)
+            _fd_params = fundamental_diagrams.get(_fd, {})
+            links[lid] = Link(from_node, to_node, FundamentalDiagram(**{**_fd_params, **link}), density=density)
             if _ratios is not None:
                 split_ratios[links[lid]] = _ratios
         for link, ratios in split_ratios.items():
