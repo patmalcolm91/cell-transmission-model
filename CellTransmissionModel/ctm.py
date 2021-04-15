@@ -398,15 +398,33 @@ class Network:
 class Simulation:
     def __init__(self, net, start_time=0, end_time=24, step_size=0.25, scenario_file=None):
         self.net = net
-        self.start_time = start_time
-        self.end_time = end_time
-        self.time = start_time
-        self.step_size = step_size
+        self._start_time = start_time
+        self._end_time = end_time
+        self._time = start_time
+        self._step_size = step_size
+        self._all_steps = np.arange(start_time, end_time, step_size)
+        self._step_iterator = iter(self._all_steps)
         self._records = []
         self._dynamic_inflows = EventManager()
         self._dynamic_split_ratios = EventManager()
         if scenario_file is not None:
             self.load_scenario_from_file(scenario_file)
+
+    @property
+    def start_time(self):
+        return self._start_time
+
+    @property
+    def end_time(self):
+        return self._end_time
+
+    @property
+    def step_size(self):
+        return self._step_size
+
+    @property
+    def time(self):
+        return self._time
 
     @property
     def time_steps(self):
@@ -450,11 +468,14 @@ class Simulation:
                 raise UserWarning("Invalid definition of split ratios in scenario file.")
 
     def step(self):
-        self.time += self.step_size
+        self._time = next(self._step_iterator)
         self._update_dynamic_flows()
         self._update_dynamic_split_ratios()
         self.net.step(self.step_size)
         self._records += [{"time": self.time, **record} for record in self.net.get_records()]
+
+    def __next__(self):
+        return self.step()
 
     def plot(self, ax=None, timestamp_loc="upper left", exaggeration=1, **kwargs):
         if ax is None:
