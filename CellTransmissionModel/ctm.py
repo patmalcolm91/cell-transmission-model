@@ -409,6 +409,10 @@ class Simulation:
             self.load_scenario_from_file(scenario_file)
 
     @property
+    def time_steps(self):
+        return np.arange(self.start_time, self.end_time, self.step_size)
+
+    @property
     def records(self):
         return self._records
 
@@ -477,7 +481,7 @@ if __name__ == "__main__":
     net.plot_colorbar(ax)
     sim = Simulation(net, start_time=0, end_time=24, step_size=1/30)
     sim.load_scenario_from_file("../test_scenario.yaml")
-    a = FuncAnimation(fig, anim, fargs=(ax, sim), blit=True, interval=100)
+    a = FuncAnimation(fig, anim, fargs=(ax, sim), frames=sim.time_steps, blit=True, repeat=False, interval=100)
 
     # net.plot()
     plt.show()

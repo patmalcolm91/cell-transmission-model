@@ -22,5 +22,5 @@ def anim(t, ax, sim):
 # Set up and run the animation
 fig, ax = plt.subplots()
 net.plot_colorbar(ax)
-a = FuncAnimation(fig, anim, fargs=(ax, sim), blit=True, interval=100)
+a = FuncAnimation(fig, anim, fargs=(ax, sim), frames=sim.time_steps, repeat=False, blit=True, interval=100)
 plt.show()
