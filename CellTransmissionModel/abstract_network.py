@@ -65,8 +65,11 @@ class AbstractRoad:
         if self.from_intersection is None or self.to_intersection is None:
             raise UserWarning("All AbstractRoad objects must start and end with either an intersection or an AbstractSourceSink object.")
         ls = self._linestring
-        ds = np.linspace(0, ls.length, int(np.ceil(ls.length/self.max_link_length)+1))
-        pts = [ls.interpolate(d) for d in ds]
+        if ls.length > self.max_link_length:
+            ds = np.linspace(0, ls.length, int(np.ceil(ls.length/self.max_link_length)+1))
+            pts = [ls.interpolate(d) for d in ds]
+        else:
+            pts = [p for p in ls.coords]
         self._nodes = [Node(pt, id=str(self.id)+"."+str(i)) for i, pt in enumerate(pts)]
         self._links = []
         for i in range(len(self.nodes)-1):
