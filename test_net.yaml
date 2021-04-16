@@ -1,4 +1,8 @@
 fundamental_diagrams:
+  default:
+    flow_capacity: 1800
+    critical_density: 33.7
+    congestion_wave_speed: 6.9
   two_lane:
     flow_capacity: 3600
     critical_density: 67.4
