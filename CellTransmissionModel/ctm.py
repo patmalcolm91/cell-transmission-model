@@ -490,7 +490,7 @@ class Simulation:
         artists = []
         artists += self.net.plot(ax, exaggeration=exaggeration, **kwargs)
         if timestamp_loc is not None:
-            h, m, s = int(self.time), round((self.time*60) % 60)%60, round((self.time*3600) % 60)%60
+            h, m, s = int(self.time), int((self.time*60) % 60)%60, round((self.time*3600) % 60)%60
             artists.append(AnchoredText("{:02.0f}:{:02.0f}:{:02.0f}".format(h, m, s), loc=timestamp_loc))
             ax.add_artist(artists[-1])
         return artists
