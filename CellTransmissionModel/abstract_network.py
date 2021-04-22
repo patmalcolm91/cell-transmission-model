@@ -11,6 +11,9 @@ from CellTransmissionModel._Util import signed_angle_from_three_points
 from copy import copy
 
 
+EPS = 1E-6  # epsilon (threshold for small values)
+
+
 class AbstractRoad:
     def __init__(self, alignment, oneway=False, fundamental_diagram_a=None, fundamental_diagram_b=None, max_link_length=10, *, id=None):
         """
@@ -60,6 +63,50 @@ class AbstractRoad:
         road = cls([from_pt, to_pt], oneway=oneway, max_link_length=max_link_length)
         road.from_intersection, road.to_intersection = from_intersection, to_intersection
         return road
+
+    @property
+    def n_links_per_direction(self):
+        """Number of links in each travel direction into which the road is divided."""
+        if len(self._links) == 0:
+            raise UserWarning("Can't get number of links per direction on road before it has been baked.")
+        return len(self._links) if self.oneway else len(self._links)//2
+
+    def get_last_link_to_intersection(self, intersection):
+        """
+        Get the last link of the road from the perspective of the given intersection, i.e. the link that flows directly
+        into the specified intersection.
+
+        :param intersection: the reference intersection
+        :type intersection: _AbstractJunction
+        :return: Link object
+        """
+        if intersection == self._to_intersection:
+            if self.oneway:
+                return self._links[self.n_links_per_direction - 1]
+            else:
+                return self._links[(self.n_links_per_direction - 1)*2]
+        elif intersection == self._from_intersection:
+            if self.oneway:
+                raise UserWarning("Road " + str(self.id) + " does not have an outgoing link to intersection" + str(intersection.id))
+            return self._links[1]
+        raise UserWarning("Road " + str(self.id) + " does not connect to intersection " + str(intersection.id))
+
+    def get_first_link_from_intersection(self, intersection):
+        """
+        Get the first link of the road from the perspective of the given intersection, i.e. the link that flows directly
+        out from the specified intersection.
+
+        :param intersection: the reference intersection
+        :type intersection: _AbstractJunction
+        :return: Link object
+        """
+        if intersection == self.from_intersection:
+            return self._links[0]
+        elif intersection == self.to_intersection:
+            if self.oneway:
+                raise UserWarning("Road " + str(self.id) + " does not have an incoming link to intersection" + str(intersection.id))
+            return self._links[self.n_links_per_direction*2 - 1]
+        raise UserWarning("Road " + str(self.id) + " does not connect to intersection " + str(intersection.id))
 
     def bake(self):
         if self.from_intersection is None or self.to_intersection is None:
@@ -259,6 +306,60 @@ class AbstractIntersection(_AbstractJunction):
                     if inc_link in self.links and out_link in self.links:
                         inc_link.set_outgoing_split_ratios_by_reference({out_link: 0})
 
+    def set_turning_ratios(self, incoming_road, left=None, straight=None, right=None):
+        """
+        Set the turning ratios at the intersection for the specified road. Values
+
+        :param incoming_road: the incoming road for which to set the turning ratios
+        :type incoming_road: AbstractRoad
+        :param left: proportion of vehicles that should turn left
+        :type left: float
+        :param straight: proportion of vehicles that continue straight
+        :type straight: float
+        :param right: proportion of vehicles that should turn right
+        :type right: float
+        :return: None
+        """
+        road_node = self._road_node_incoming(incoming_road)  # type: Node
+        inc_link = incoming_road.get_last_link_to_intersection(self)
+        _nodes, _links = self._nodes_logic[incoming_road], self._links_logic[incoming_road]
+        _l = left if left is not None else 0
+        _s = straight if straight is not None else 0
+        _r = right if right is not None else 0
+        # check that arguments are valid
+        if abs(1 - (_l + _s + _r)) > EPS:
+            raise ValueError("Turning ratios must sum to 1.")
+        if (left is not None and "l_mvmt" not in _links) or \
+                (straight is not None and "s_mvmt" not in _links) or \
+                (right is not None and "r_mvmt" not in _links):
+            raise ValueError("A turning ratio was specified for a movement which does not exist.")
+        # set the ratios at the incoming road node
+        if "ls_queue" in _links and "r_queue" in _links:
+            if right is not None and (left is not None or straight is not None):
+                road_node.set_split_ratios_by_reference({(inc_link, _links["r_queue"]): _r,
+                                                         (inc_link, _links["ls_queue"]): _l+_s})
+        # set ratios for right node
+        if "r_queue" in _links:
+            _nodes["r"].set_split_ratios_by_reference({(_links["r_queue"], _links["r_mvmt"]): 1})
+        # set ratios for left-straight node
+        if "ls_queue" in _links:
+            if "l_queue" not in _links:
+                if left is not None:
+                    raise UserWarning("Trying to set left turn ratio when no left turn movement is present")
+                _nodes["ls"].set_split_ratios_by_reference({(_links["ls_queue"], _links["s_mvmt"]): 1})
+            elif "s_mvmt" not in _links:
+                if straight is not None:
+                    raise UserWarning("Trying to set left turn ratio when no left turn movement is present")
+                _nodes["ls"].set_split_ratios_by_reference({(_links["ls_queue"], _links["l_queue"]): 1})
+            else:  # i.e. if both left and straight movements are available
+                if left is not None:
+                    _nodes["ls"].set_split_ratios_by_reference({(_links["ls_queue"], _links["l_queue"]): _l/(_l+_s)})
+                if straight is not None:
+                    _nodes["ls"].set_split_ratios_by_reference({(_links["ls_queue"], _links["s_mvmt"]): _s/(_l+_s)})
+        # set ratios for left node
+        if "l_queue" in _links:
+            _nodes["l"].set_split_ratios_by_reference({(_links["l_queue"], _links["l_mvmt"]): 1})
+
 
 class AbstractNetwork:
     def __init__(self, roads, intersections):
@@ -303,6 +404,7 @@ if __name__ == "__main__":
     rd3.from_intersection = intersection
     rd3.to_intersection = sourcesink3
     anet = AbstractNetwork(roads=[rd1, rd2, rd3], intersections=[sourcesink1, intersection, sourcesink2, sourcesink3])
+    intersection.set_turning_ratios(rd1, left=0.1, straight=0.9)
     sim = Simulation(anet.net, step_size=0.0001)
 
     def anim(t, ax, sim):
