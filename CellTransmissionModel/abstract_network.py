@@ -308,7 +308,10 @@ class AbstractIntersection(_AbstractJunction):
 
     def set_turning_ratios(self, incoming_road, left=None, straight=None, right=None):
         """
-        Set the turning ratios at the intersection for the specified road. Provided values must sum to 1.
+        Set the turning ratios at the intersection for the specified road. Provided values must sum to 1, and all
+        available turning movements for the road must be specified. For example, if from an incoming road, left turns
+        and straight movements are possible, then both ``left`` and ``straight`` must be given, even if one of them is
+        zero, i.e. ``straight=1, left=0``.
 
         :param incoming_road: the incoming road for which to set the turning ratios
         :type incoming_road: AbstractRoad
@@ -329,35 +332,33 @@ class AbstractIntersection(_AbstractJunction):
         # check that arguments are valid
         if abs(1 - (_l + _s + _r)) > EPS:
             raise ValueError("Turning ratios must sum to 1.")
-        if (left is not None and "l_mvmt" not in _links) or \
-                (straight is not None and "s_mvmt" not in _links) or \
-                (right is not None and "r_mvmt" not in _links):
-            raise ValueError("A turning ratio was specified for a movement which does not exist.")
+        _l_given, _s_given, _r_given = left is not None, straight is not None, right is not None
+        _has_l, _has_s, _has_r = "l_mvmt" in _links, "s_mvmt" in _links, "r_mvmt" in _links
+        if _l_given != _has_l or _s_given != _has_s or _r_given != _has_r:
+            given_string = "".join([t for t, given in zip("lsr", [_l_given, _s_given, _r_given]) if given])
+            has_string = "".join([t for t, has in zip("lsr", [_has_l, _has_s, _has_r]) if has])
+            raise ValueError("Given turning ratios (" + given_string + ") do not exactly match available movements (" +
+                             has_string+") for road "+str(incoming_road.id)+" into intersection "+str(self.id))
         # set the ratios at the incoming road node
-        if "ls_queue" in _links and "r_queue" in _links:
-            if right is not None and (left is not None or straight is not None):
-                road_node.set_split_ratios_by_reference({(inc_link, _links["r_queue"]): _r,
-                                                         (inc_link, _links["ls_queue"]): _l+_s})
+        if _has_r and (_has_l or _has_s):
+            road_node.set_split_ratios_by_reference({(inc_link, _links["r_queue"]): _r,
+                                                     (inc_link, _links["ls_queue"]): _l+_s})
         # set ratios for right node
-        if "r_queue" in _links:
+        if _has_r:
             _nodes["r"].set_split_ratios_by_reference({(_links["r_queue"], _links["r_mvmt"]): 1})
         # set ratios for left-straight node
-        if "ls_queue" in _links:
-            if "l_queue" not in _links:
-                if left is not None:
-                    raise UserWarning("Trying to set left turn ratio when no left turn movement is present")
+        if _has_l or _has_s:
+            if not _has_l:
                 _nodes["ls"].set_split_ratios_by_reference({(_links["ls_queue"], _links["s_mvmt"]): 1})
-            elif "s_mvmt" not in _links:
-                if straight is not None:
-                    raise UserWarning("Trying to set left turn ratio when no left turn movement is present")
+            elif not _has_s:
                 _nodes["ls"].set_split_ratios_by_reference({(_links["ls_queue"], _links["l_queue"]): 1})
             else:  # i.e. if both left and straight movements are available
-                if left is not None:
+                if _l_given:
                     _nodes["ls"].set_split_ratios_by_reference({(_links["ls_queue"], _links["l_queue"]): _l/(_l+_s)})
-                if straight is not None:
+                if _s_given:
                     _nodes["ls"].set_split_ratios_by_reference({(_links["ls_queue"], _links["s_mvmt"]): _s/(_l+_s)})
         # set ratios for left node
-        if "l_queue" in _links:
+        if _has_l:
             _nodes["l"].set_split_ratios_by_reference({(_links["l_queue"], _links["l_mvmt"]): 1})
 
 
