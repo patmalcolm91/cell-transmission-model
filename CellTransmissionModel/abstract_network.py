@@ -308,7 +308,7 @@ class AbstractIntersection(_AbstractJunction):
 
     def set_turning_ratios(self, incoming_road, left=None, straight=None, right=None):
         """
-        Set the turning ratios at the intersection for the specified road. Values
+        Set the turning ratios at the intersection for the specified road. Provided values must sum to 1.
 
         :param incoming_road: the incoming road for which to set the turning ratios
         :type incoming_road: AbstractRoad
