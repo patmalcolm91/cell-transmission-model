@@ -172,7 +172,27 @@ class AbstractIntersection(_AbstractJunction):
     def __init__(self, location, radius=8, *, id=None):
         super().__init__(location, id=id)
         self.radius = radius
-        self._lsr_map = dict()
+        self._lsr_map = {}  # {incoming_road: {"l": outgoing_road, "s": outgoing_road, "r": outgoing_road}, ...}
+        self._nodes_logic = {}  # {incoming_road: {"ls": node_ls, "l": node_l, "r": node_r}, ...}
+        self._links_logic = {}  # {incoming_road: {"r_queue": rq, "ls_queue": lsq, "l_queue": lq, "l_mvmt": lm, "s_mvmt": sm, "r_mvmt": rm},  ...}
+
+    @property
+    def nodes(self):
+        """All the internal nodes of the intersection as a list."""
+        _nodes = []
+        for rd_nodes in self._nodes_logic.values():
+            for node in rd_nodes.values():
+                _nodes.append(node)
+        return _nodes
+
+    @property
+    def links(self):
+        """All the internal links of the intersection as a list."""
+        _links = []
+        for rd_links in self._links_logic.values():
+            for link in rd_links.values():
+                _links.append(link)
+        return _links
 
     def bake(self):
         incoming_roads, outgoing_roads = self.incoming_roads, self.outgoing_roads
@@ -181,6 +201,8 @@ class AbstractIntersection(_AbstractJunction):
         elif len(incoming_roads) == 0 or len(outgoing_roads) == 0:
             raise UserWarning("AbstractIntersection must have at least one incoming and one outgoing road.")
         for incoming_road in incoming_roads:
+            self._nodes_logic[incoming_road] = {}
+            self._links_logic[incoming_road] = {}
             road_node = self._road_node_incoming(incoming_road)
             _vec = self.location - road_node.pos
             _perp = np.array([-_vec[1], _vec[0]])
@@ -208,21 +230,27 @@ class AbstractIntersection(_AbstractJunction):
                     self._lsr_map[incoming_road]["l"] = outgoing_road
             # add links and nodes as necessary
             if "l" in self._lsr_map[incoming_road] or "s" in self._lsr_map[incoming_road]:
-                self.nodes.append(node_ls)
-                self.links.append(Link(from_node=road_node, to_node=node_ls, fundamental_diagram=FundamentalDiagram()))
+                self._nodes_logic[incoming_road]["ls"] = node_ls
+                self._links_logic[incoming_road]["ls_queue"] = Link(from_node=road_node, to_node=node_ls,
+                                                                    fundamental_diagram=FundamentalDiagram())
             if "l" in self._lsr_map[incoming_road]:
-                self.nodes.append(node_l)
-                self.links.append(Link(from_node=node_ls, to_node=node_l, fundamental_diagram=FundamentalDiagram()))
+                self._nodes_logic[incoming_road]["l"] = node_l
+                self._links_logic[incoming_road]["l_queue"] = Link(from_node=node_ls, to_node=node_l,
+                                                                   fundamental_diagram=FundamentalDiagram())
                 to_node = self._road_node_outgoing(self._lsr_map[incoming_road]["l"])
-                self.links.append(Link(from_node=node_l, to_node=to_node, fundamental_diagram=FundamentalDiagram()))
+                self._links_logic[incoming_road]["l_mvmt"] = Link(from_node=node_l, to_node=to_node,
+                                                                  fundamental_diagram=FundamentalDiagram())
             if "s" in self._lsr_map[incoming_road]:
                 to_node = self._road_node_outgoing(self._lsr_map[incoming_road]["s"])
-                self.links.append(Link(from_node=node_ls, to_node=to_node, fundamental_diagram=FundamentalDiagram()))
+                self._links_logic[incoming_road]["s_mvmt"] = Link(from_node=node_ls, to_node=to_node,
+                                                                  fundamental_diagram=FundamentalDiagram())
             if "r" in self._lsr_map[incoming_road]:
-                self.nodes.append(node_r)
-                self.links.append(Link(from_node=road_node, to_node=node_r, fundamental_diagram=FundamentalDiagram()))
+                self._nodes_logic[incoming_road]["r"] = node_r
+                self._links_logic[incoming_road]["r_queue"] = Link(from_node=road_node, to_node=node_r,
+                                                                   fundamental_diagram=FundamentalDiagram())
                 to_node = self._road_node_outgoing(self._lsr_map[incoming_road]["r"])
-                self.links.append(Link(from_node=node_r, to_node=to_node, fundamental_diagram=FundamentalDiagram()))
+                self._links_logic[incoming_road]["r_mvmt"] = Link(from_node=node_r, to_node=to_node,
+                                                                  fundamental_diagram=FundamentalDiagram())
         # disable internal u-turns
         for road in self.incoming_roads:
             road_node = self._road_node_incoming(road)
