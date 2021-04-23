@@ -17,22 +17,40 @@ EPS = 1E-6  # epsilon (threshold for small values)
 
 
 class FundamentalDiagram:
+    """
+    A class representing a fundamental diagram. The FD can be scaled by setting the ``scale`` property, which scales the
+    flow and density values but not the speed values (i.e. such that the nominal and scaled FDs are similar triangles).
+    """
     def __init__(self, flow_capacity=1800, critical_density=33.7, congestion_wave_speed=6.9):
         self._flow_capacity = flow_capacity
         self._critical_density = critical_density
         self._congestion_wave_speed = congestion_wave_speed
+        self._scale = 1.0
+
+    @property
+    def scale(self):
+        """A scaling factor applied to the originally defined diagram. See class documentation for details."""
+        return self._scale
+
+    @scale.setter
+    def scale(self, scale):
+        if scale > 1 + EPS:
+            warnings.warn("Fundamental diagram is being scaled by factor greater than one.")
+        elif scale < -EPS:
+            raise ValueError("Can not scale fundamental diagram by negative value.")
+        self._scale = scale
 
     @property
     def flow_capacity(self):
-        return self._flow_capacity
+        return self._flow_capacity * self._scale
 
     @property
     def critical_density(self):
-        return self._critical_density
+        return self._critical_density * self._scale
 
     @property
     def free_flow_speed(self):
-        return self.flow_capacity / self.critical_density
+        return self._flow_capacity / self._critical_density
 
     @property
     def congestion_wave_speed(self):
