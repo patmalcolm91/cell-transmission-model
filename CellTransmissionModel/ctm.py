@@ -17,7 +17,14 @@ EPS = 1E-6  # epsilon (threshold for small values)
 
 
 class FundamentalDiagram:
-    def __init__(self, flow_capacity=1800, critical_density=33.7, congestion_wave_speed=6.9):
+    def __init__(self, flow_capacity=1800, critical_density=18.6, congestion_wave_speed=20):
+        """
+        Initialize a fundamental diagram.
+
+        :param flow_capacity: flow capacity (veh/h)
+        :param critical_density: critical density (veh/km)
+        :param congestion_wave_speed: congestion wave speed (km/h)
+        """
         self._flow_capacity = flow_capacity
         self._critical_density = critical_density
         self._congestion_wave_speed = congestion_wave_speed
@@ -211,10 +218,14 @@ class Link:
         self.id = id if id is not None else str(self.from_node.id) + "->" + str(self.to_node.id)
         self._vec = self.to_node.pos - self.from_node.pos
         self.heading = np.arctan2(self._vec[1], self._vec[0])
-        self.length = np.linalg.norm(self._vec)
-        self._unit_vector = self._vec / self.length
+        self.length_m = np.linalg.norm(self._vec)  # in meters
+        self._unit_vector = self._vec / self.length_m
         self._upstream_flow = None
         self._downstream_flow = None
+
+    @property
+    def length_km(self):
+        return self.length_m / 1000
 
     @property
     def direction(self):
@@ -272,13 +283,20 @@ class Link:
         self.to_node.set_link_outgoing_split_ratios(self, ratios)
 
     def update_state(self, dt):
-        self.density = self.density + (dt / (self.length / 1000)) * (self.upstream_flow - self.downstream_flow)
+        """
+        Update the state of the link.
+
+        :param dt: time step size (hours)
+        :type dt: float
+        :return: None
+        """
+        self.density = self.density + (dt / self.length_km) * (self.upstream_flow - self.downstream_flow)
 
     def plot(self, ax=None, exaggeration=1, **kwargs):
         if ax is None:
             ax = plt.gca()  # type: plt.gca()
         start = self.from_node.pos + exaggeration*self.from_node.radius*self._unit_vector
-        delta = (self.length - exaggeration*(self.from_node.radius + self.to_node.radius))*self._unit_vector
+        delta = (self.length_m - exaggeration * (self.from_node.radius + self.to_node.radius)) * self._unit_vector
         artist = Arrow(*start, *delta, **{"width": exaggeration*self.flow_capacity*3.2/1800, **kwargs})
         ax.add_patch(artist)
         return [artist]
@@ -289,7 +307,7 @@ class Network:
         self._nodes = [] if nodes is None else nodes
         self._links = [] if links is None else links
         self._mappable = None  # type: plt.cm.ScalarMappable
-        self._max_dt = min((l.length/1000)/l.free_flow_speed for l in links)  # max value that the time step may take
+        self._max_dt = min(l.length_km / l.free_flow_speed for l in links)  # max value that the time step may take
 
     @classmethod
     def from_yaml(cls, file):
@@ -358,6 +376,12 @@ class Network:
         self._links.append(link)
 
     def step(self, dt):
+        """
+        Update the network state by the specified time step.
+
+        :param dt: time step size (hours)
+        :return: None
+        """
         if dt > self._max_dt:
             raise UserWarning("Passed time step " + str(dt) + " greater than recommended maximum: " + str(self._max_dt))
         for node in self._nodes:
@@ -404,6 +428,20 @@ class Network:
 
 class Simulation:
     def __init__(self, net, start_time=0, end_time=24, step_size=0.25, scenario_file=None):
+        """
+        Initialize a Simulation object with a network and optional scenario file.
+
+        :param net: the Network object to use for the simulation
+        :type net: Network
+        :param start_time: start time for the simulation (hours)
+        :type start_time: float
+        :param end_time: end time for the simulation (hours)
+        :type end_time: float
+        :param step_size: step size for the simulation (hours)
+        :type step_size: float
+        :param scenario_file: (optional) path to a scenario file
+        :type scenario_file: str
+        """
         self.net = net
         self._start_time = start_time
         self._end_time = end_time
