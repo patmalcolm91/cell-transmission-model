@@ -7,6 +7,7 @@ import numpy as np
 import yaml
 import matplotlib.pyplot as plt
 from matplotlib.patches import Arrow, Polygon
+from matplotlib.lines import Line2D
 from CellTransmissionModel._Util import LineDataUnits, CircleDataUnits, EventManager
 from matplotlib.colors import Normalize
 from matplotlib.offsetbox import AnchoredText
@@ -72,6 +73,24 @@ class FundamentalDiagram:
         if density < 0 or density > self.jam_density:
             raise ValueError("Provided density value is invalid.")
         return self.free_flow_speed if density < self.critical_density else self.congestion_wave_speed
+
+    def plot(self, ax=None, **kwargs):
+        """
+        Plot the fundamental diagram (and its nominal values if scaled).
+
+        :param ax: matplotlib Axes object on which to plot
+        :type ax: plt.Axes
+        :param kwargs: kwargs to pass to matplotlib.lines.Line2D
+        :return: None
+        """
+        ax = ax if ax is not None else plt.gca()  # type: plt.Axes
+        kwargs = {"color": "C0", **kwargs}
+        ax.add_line(Line2D([0, self.critical_density, self.jam_density], [0, self.flow_capacity, 0], **kwargs))
+        if abs(1 - self.scale) > EPS:
+            kwargs = {"linestyle": "dashed", **kwargs}
+            ax.add_line(Line2D([0, self._critical_density, self.jam_density/self.scale],
+                               [0, self._flow_capacity, 0], **kwargs))
+        ax.autoscale_view()
 
 
 class Node:
