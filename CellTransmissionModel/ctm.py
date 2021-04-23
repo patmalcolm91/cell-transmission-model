@@ -17,7 +17,14 @@ EPS = 1E-6  # epsilon (threshold for small values)
 
 
 class FundamentalDiagram:
-    def __init__(self, flow_capacity=1800, critical_density=33.7, congestion_wave_speed=6.9):
+    def __init__(self, flow_capacity=1800, critical_density=18.6, congestion_wave_speed=20):
+        """
+        Initialize a fundamental diagram.
+
+        :param flow_capacity: flow capacity (veh/h)
+        :param critical_density: critical density (veh/km)
+        :param congestion_wave_speed: congestion wave speed (km/h)
+        """
         self._flow_capacity = flow_capacity
         self._critical_density = critical_density
         self._congestion_wave_speed = congestion_wave_speed
