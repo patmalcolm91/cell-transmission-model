@@ -6,8 +6,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from shapely.geometry import LineString, Point
 from abc import abstractmethod
+from typing import List
 from CellTransmissionModel.ctm import Network, Node, SourceNode, SinkNode, Link, FundamentalDiagram
 from CellTransmissionModel._Util import signed_angle_from_three_points
+import re
 from copy import copy
 
 
@@ -360,6 +362,77 @@ class AbstractIntersection(_AbstractJunction):
         # set ratios for left node
         if _has_l:
             _nodes["l"].set_split_ratios_by_reference({(_links["l_queue"], _links["l_mvmt"]): 1})
+
+
+class SignalPhase:
+    """
+    Helper class for storing a signal phase, consisting of incoming roads and corresponding left, straight, and right
+    movements. A movement is given as a (incoming_road, directions) tuple, where directions is a string containing the
+    directions allowed during the phase (e.g. "l" for left, "lsr" for left-straight-right, "sr" for straight-right, and
+    so on; the letters must be given in this order, i.e. "sl" is not allowed).
+    """
+    _DIRECTIONS_REGEX = re.compile(r"^[l]?[s]?[r]?$")  # regex for matching a valid movement directions string
+
+    def __init__(self, duration, *movements):
+        """
+        Initialize a Signal Phase object.
+
+        :param duration: duration of signal phase (s)
+        :param movements: any number of (incoming_road, directions) tuples. See class documentation for details.
+        """
+        self.duration = duration
+        self.movements = {}
+        for incoming_road, directions in movements:
+            self.add_movement(incoming_road, directions)
+
+    def add_movement(self, incoming_road, directions):
+        """
+        Add movements from the incoming_road in the specified directions to a Signal Phase. See class documentation.
+
+        :param incoming_road: the incoming road for the movement to be added
+        :type incoming_road: AbstractRoad
+        :param directions: string specifying the directions which are to be allowed from incoming_road during this phase
+        :type directions: str
+        :return:
+        """
+        if self._DIRECTIONS_REGEX.match(directions) is None:
+            raise ValueError("Signal phase movement directions must consist only of l, s, and r, in that order.")
+        if incoming_road not in self.movements:
+            self.movements[incoming_road] = directions
+        else:
+            raise UserWarning("Road " + str(incoming_road.id) + " already specified in signal phase.")
+
+
+class AbstractSignalizedIntersection(AbstractIntersection):
+    def __init__(self, location, radius=8, *, id=None, phases: List[SignalPhase] = None):
+        super().__init__(location=location, radius=radius, id=id)
+        self.phases = [] if phases is None else phases  # type: list[SignalPhase]
+        self._current_phase_index = 0
+        self._update()
+
+    @property
+    def cycle_time(self):
+        """Total cycle time for the signal plan."""
+        return sum([phase.duration for phase in self.phases])
+
+    @property
+    def current_phase(self):
+        """SignalPhase object corresponding to the currently active phase."""
+        return self.phases[self._current_phase_index]
+
+    @property
+    def n_phases(self):
+        """Number of phases in the signal plan."""
+        return len(self.phases)
+
+    def next_phase(self):
+        """Move to the next phase in the signal plan."""
+        self._current_phase_index = (self._current_phase_index + 1) % self.n_phases
+        self._update()
+
+    def _update(self):
+        """Update link capacities based on the current phase."""
+        raise NotImplementedError("AbstractSignalizedIntersection._update() not yet implemented.")
 
 
 class AbstractNetwork:
