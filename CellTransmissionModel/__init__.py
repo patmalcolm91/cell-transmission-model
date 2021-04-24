@@ -4,4 +4,4 @@ A python implementation of the Cell Transmission Model for macroscopic traffic s
 
 __all__ = ["ctm"]
 
-from .ctm import Node, SourceNode, SinkNode, Link, Network, Simulation
+from .ctm import Node, SourceNode, SinkNode, IndependentDivergeNode, Link, Network, Simulation

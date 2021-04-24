@@ -220,6 +220,34 @@ class Node:
         return artists
 
 
+class IndependentDivergeNode(Node):
+    """
+    This is a node which computes flows with the assumption that in the case of a diverging node (i.e. one with multiple
+    outgoing links), the incoming flows can be routed to the outgoing links independently. That is to say, for example,
+    if one of the outgoing links is blocked/disabled, the full flow of vehicles desiring to flow to other outgoing links
+    may do so (up to the capacity of the outgoing links, of course), unaffected by the single blocked link. In the case
+    of demand exceeding supply, demand flows are all scaled down by the same factor to make the demand equal the supply.
+    """
+    def compute_flows(self):
+        """Compute flows using independent divergent flows."""
+        demand = np.array([link.output_demand for link in self.incoming_links])
+        supply = np.array([link.input_supply for link in self.outgoing_links])
+        od = demand[:, np.newaxis]*self.split_ratio_matrix
+        final_od = od*np.minimum(1, np.nan_to_num(supply/od.sum(axis=0)))  # scale down inflows based on each outflow independently
+        # set the incoming link downstream flows
+        for link, flow in zip(self.incoming_links, final_od.sum(axis=1)):
+            link.downstream_flow = flow
+        # set the outgoing link upstream flows
+        for link, flow in zip(self.outgoing_links, final_od.sum(axis=0)):
+            link.upstream_flow = flow
+
+        # TODO: REMOVE THE FOLLOWING DEBUG LINES ONCE THIS FUNCTION HAS BEEN TESTED
+        inflows = sum([link.downstream_flow for link in self.incoming_links])
+        outflows = sum([link.upstream_flow for link in self.outgoing_links])
+        if abs(inflows - outflows) > EPS:
+            raise SystemError("Singularity detected in node! (net flow: " + str(inflows - outflows) + ")")
+
+
 class SourceNode(Node):
     def __init__(self, pos, inflow, *, id=None, radius=1):
         super().__init__(pos, id=id, radius=radius)
@@ -425,6 +453,8 @@ class Network:
                 nodes[nid] = SinkNode(node["pos"], id=nid)
             elif node.get("source", False):
                 nodes[nid] = SourceNode(node["pos"], node.get("inflow", 0), id=nid)
+            elif node.get("type", None) == "independent_diverge":
+                nodes[nid] = IndependentDivergeNode(node["pos"], id=nid)
             else:
                 nodes[nid] = Node(node["pos"], id=nid)
         # load links
