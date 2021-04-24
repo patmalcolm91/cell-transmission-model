@@ -174,14 +174,16 @@ class Node:
 
     def compute_flows(self):
         m, n = len(self.incoming_links), len(self.outgoing_links)
+        if np.any([l.enabled for l in self.outgoing_links]) and not np.all([l.enabled for l in self.outgoing_links]):
+            raise UserWarning("Some but not all outgoing links from node " + str(self.id) + " are disabled. This results in undesired behavior.")
         # step 1
-        supplies = [min(link.flow_capacity, link.congestion_wave_speed*(link.jam_density - link.density)) for link in self.outgoing_links]
+        supplies = [link.input_supply for link in self.outgoing_links]
         # step 2
         q = 0
         # step 3
         d_i = np.zeros((n+1, m))  # indices: q, i
         for i, link in enumerate(self.incoming_links):
-            d_i[q, i] = link.free_flow_speed*link.density*(min(1, link.flow_capacity / (link.free_flow_speed*link.density)) if link.density > 0 else 1)
+            d_i[q, i] = link.output_demand
         # step 4
         d_j = np.zeros((n+1, n))  # indices: q, j
         for j in range(n):
@@ -278,6 +280,7 @@ class SinkNode(Node):
 class Link:
     def __init__(self, from_node, to_node, fundamental_diagram, density=0, *, id=None):
         self.fundamental_diagram = fundamental_diagram  # type: FundamentalDiagram
+        self.enabled = True
         self.density = density
         self.from_node = from_node
         self.from_node.outgoing_links.append(self)
@@ -294,6 +297,21 @@ class Link:
 
     def __repr__(self):
         return self.__class__.__name__+"(id=" + str(self.id) + ")"
+
+    @property
+    def input_supply(self):
+        if self.enabled:
+            return min(self.flow_capacity, self.congestion_wave_speed * (self.jam_density - self.density))
+        else:
+            return 0
+
+    @property
+    def output_demand(self):
+        if self.density > 0:
+            factor = min(1.0, self.flow_capacity / (self.free_flow_speed * self.density))
+        else:
+            factor = 1
+        return self.free_flow_speed * self.density * factor
 
     @property
     def direction(self):
@@ -368,6 +386,7 @@ class Link:
             ax = plt.gca()  # type: plt.gca()
         start = self.from_node.pos + exaggeration*self.from_node.radius*self._unit_vector
         delta = (self.length - exaggeration*(self.from_node.radius + self.to_node.radius))*self._unit_vector
+        kwargs = {"alpha": 1 if self.enabled else 0.3, **kwargs}
         if half_arrows:
             _w = kwargs.pop("width", exaggeration*self.flow_capacity*3.2/1800)
             coords = [start, start+delta,
