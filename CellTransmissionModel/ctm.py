@@ -478,7 +478,9 @@ class Network:
         link_records = [{"link_id": link.id,
                          "density": link.density,
                          "flow": link.flow,
-                         "speed": link.speed} for link in self._links]
+                         "speed": link.speed,
+                         "upstream_flow": link.upstream_flow,
+                         "downstream_flow": link.downstream_flow} for link in self._links]
         node_records = [{"node_id": node.id,
                          "split_ratios": node.split_ratio_matrix} for node in self._nodes]
         return link_records + node_records
