@@ -438,7 +438,27 @@ class AbstractSignalizedIntersection(AbstractIntersection):
 
     def _update(self):
         """Update link capacities based on the current phase."""
-        raise NotImplementedError("AbstractSignalizedIntersection._update() not yet implemented.")
+        # TODO: Rethink how phases are handled. With this CTM implementation, effectively only entire nodes can be
+        #  enabled/disabled, meaning certain phase definitions are impossible to achieve with the current intersection
+        #  node and link structure. Either restructure intersection, or use a different diverging node model.
+        # skip update if intersection isn't yet fully built
+        if self.n_phases == 0 or len(self.links) == 0:
+            return
+        # Disable all movements
+        for incoming_road in self._links_logic:
+            for link_label in ["ls_queue", "l_queue", "s_mvmt", "r_queue"]:
+                if link_label in self._links_logic[incoming_road]:
+                    self._links_logic[incoming_road][link_label].enabled = False
+        # Enable the movements that are part of the current phase
+        for incoming_road, directions in self.current_phase.movements.items():
+            if "l" in directions or "s" in directions:
+                self._links_logic[incoming_road]["ls_queue"].enabled = True
+                if "l" in directions:
+                    self._links_logic[incoming_road]["l_queue"].enabled = True
+                if "s" in directions:
+                    self._links_logic[incoming_road]["s_mvmt"].enabled = True
+            if "r" in directions:
+                self._links_logic[incoming_road]["r_queue"].enabled = True
 
 
 class AbstractNetwork:
@@ -474,7 +494,7 @@ if __name__ == "__main__":
     sourcesink2 = AbstractSourceSink((170, 50), 0)
     sourcesink3 = AbstractSourceSink((100, 50), 0)
     rd1 = AbstractRoad([(0, 0), (85, 0)], id="rd1")
-    intersection = AbstractIntersection((100, 0), radius=15)
+    intersection = AbstractSignalizedIntersection((100, 0), radius=15, phases=[SignalPhase(30, (rd1, "l"))])
     rd2 = AbstractRoad([(115, 0), (125, 0), (150, 50)], id="rd2")
     rd3 = AbstractRoad([(100, 15), (100, 35)], id="rd3")
     rd1.from_intersection = sourcesink1
@@ -484,7 +504,8 @@ if __name__ == "__main__":
     rd3.from_intersection = intersection
     rd3.to_intersection = sourcesink3
     anet = AbstractNetwork(roads=[rd1, rd2, rd3], intersections=[sourcesink1, intersection, sourcesink2, sourcesink3])
-    intersection.set_turning_ratios(rd1, left=0.1, straight=0.9)
+    intersection.set_turning_ratios(rd1, left=0.5, straight=0.5)
+    intersection._update()
     sim = Simulation(anet.net, step_size=0.0001)
 
     def anim(t, ax, sim):
