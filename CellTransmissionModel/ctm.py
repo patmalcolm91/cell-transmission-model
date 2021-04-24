@@ -104,7 +104,7 @@ class Node:
         self._manually_set_split_ratios = {}
 
     def __repr__(self):
-        return "Node(id="+str(self.id)+"pos=("+str(self.pos[0])+","+str(self.pos[1])+"))"
+        return self.__class__.__name__+"(id="+str(self.id)+"pos=("+str(self.pos[0])+","+str(self.pos[1])+"))"
 
     def _generate_even_split_ratio_matrix(self):
         m, n = len(self.incoming_links), len(self.outgoing_links)
@@ -293,7 +293,7 @@ class Link:
         self._downstream_flow = None
 
     def __repr__(self):
-        return "Link(id=" + str(self.id) + ")"
+        return self.__class__.__name__+"(id=" + str(self.id) + ")"
 
     @property
     def direction(self):

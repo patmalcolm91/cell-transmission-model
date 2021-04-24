@@ -37,6 +37,9 @@ class AbstractRoad:
         self._from_intersection = None
         self._to_intersection = None
 
+    def __repr__(self):
+        return "AbstractRoad(id="+str(self.id)+")"
+
     @property
     def from_intersection(self):
         return self._from_intersection
@@ -150,6 +153,9 @@ class _AbstractJunction:
         self._connecting_roads_ends = []  # 0 if the beginning of the road connects, -1 if the end of the road connects
         self._nodes = []
         self._links = []
+
+    def __repr__(self):
+        return self.__class__.__name__+"(id=" + str(self.id) + ")"
 
     @abstractmethod
     def bake(self):
