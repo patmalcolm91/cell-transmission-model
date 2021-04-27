@@ -466,9 +466,6 @@ class AbstractSignalizedIntersection(AbstractIntersection):
 
     def _update(self):
         """Update link capacities based on the current phase."""
-        # TODO: Rethink how phases are handled. With this CTM implementation, effectively only entire nodes can be
-        #  enabled/disabled, meaning certain phase definitions are impossible to achieve with the current intersection
-        #  node and link structure. Either restructure intersection, or use a different diverging node model.
         # skip update if intersection isn't yet fully built
         if self.n_phases == 0 or len(self.links) == 0:
             return
