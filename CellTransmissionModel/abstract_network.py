@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from shapely.geometry import LineString, Point
 from abc import abstractmethod
 from typing import List
-from CellTransmissionModel.ctm import Network, Node, SourceNode, SinkNode, Link, FundamentalDiagram
+from CellTransmissionModel.ctm import Network, Node, SourceNode, SinkNode, IndependentDivergeNode, Link, FundamentalDiagram
 from CellTransmissionModel._Util import signed_angle_from_three_points
 import re
 from copy import copy
@@ -17,7 +17,8 @@ EPS = 1E-6  # epsilon (threshold for small values)
 
 
 class AbstractRoad:
-    def __init__(self, alignment, oneway=False, fundamental_diagram_a=None, fundamental_diagram_b=None, max_link_length=10, *, id=None):
+    def __init__(self, alignment, oneway=False, fundamental_diagram_a=None, fundamental_diagram_b=None,
+                 max_link_length=10, *, id=None, node_class=Node, link_class=Link, use_intersection_node_class_at_end=True):
         """
         Initialize an AbstractRoad object, which can be used to easily generate consecutive CTM links.
 
@@ -25,6 +26,9 @@ class AbstractRoad:
         :param oneway: whether or not the road is one-way
         """
         self.id = id
+        self.node_class = node_class
+        self.link_class = link_class
+        self.use_intersection_node_class_at_end = use_intersection_node_class_at_end
         self._fundamental_diagram_template_a = fundamental_diagram_a if fundamental_diagram_a is not None else FundamentalDiagram()
         self._fundamental_diagram_template_b = fundamental_diagram_b if fundamental_diagram_b is not None else FundamentalDiagram()
         self.alignment = alignment if isinstance(alignment, np.ndarray) else np.array(alignment)
@@ -114,22 +118,31 @@ class AbstractRoad:
         raise UserWarning("Road " + str(self.id) + " does not connect to intersection " + str(intersection.id))
 
     def bake(self):
+        # check if connected
         if self.from_intersection is None or self.to_intersection is None:
             raise UserWarning("All AbstractRoad objects must start and end with either an intersection or an AbstractSourceSink object.")
+        # split road geometry into segments
         ls = self._linestring
         if ls.length > self.max_link_length:
             ds = np.linspace(0, ls.length, int(np.ceil(ls.length/self.max_link_length)+1))
             pts = [ls.interpolate(d) for d in ds]
         else:
             pts = [p for p in ls.coords]
-        self._nodes = [Node(pt, id=str(self.id)+"."+str(i)) for i, pt in enumerate(pts)]
+        # determine which node classes to use for the internal and external nodes
+        _ncls = [self.node_class for _ in pts]
+        if self.use_intersection_node_class_at_end:
+            _ncls[0] = self.from_intersection.node_class
+            _ncls[-1] = self.to_intersection.node_class
+        # generate nodes
+        self._nodes = [cls(pt, id=str(self.id)+"."+str(i)) for i, (pt, cls) in enumerate(zip(pts, _ncls))]
+        # generate links
         self._links = []
         for i in range(len(self.nodes)-1):
-            self._links.append(Link(from_node=self._nodes[i], to_node=self._nodes[i+1],
-                                    fundamental_diagram=copy(self._fundamental_diagram_template_a)))
+            self._links.append(self.link_class(from_node=self._nodes[i], to_node=self._nodes[i+1],
+                                               fundamental_diagram=copy(self._fundamental_diagram_template_a)))
             if not self.oneway:
-                self._links.append(Link(from_node=self._nodes[i+1], to_node=self._nodes[i],
-                                        fundamental_diagram=copy(self._fundamental_diagram_template_b)))
+                self._links.append(self.link_class(from_node=self._nodes[i+1], to_node=self._nodes[i],
+                                                   fundamental_diagram=copy(self._fundamental_diagram_template_b)))
                 self._twin_links[self._links[-2]] = self._links[-1]
                 self._twin_links[self._links[-1]] = self._links[-2]
         # set split ratios (no u-turns)
@@ -146,9 +159,11 @@ class AbstractRoad:
 
 
 class _AbstractJunction:
-    def __init__(self, location, *, id=None):
+    def __init__(self, location, *, id=None, node_class=Node, link_class=Link):
         self.location = location if isinstance(location, np.ndarray) else np.array(location)
         self.id = id
+        self.node_class = node_class
+        self.link_class = link_class
         self._connecting_roads = []
         self._connecting_roads_ends = []  # 0 if the beginning of the road connects, -1 if the end of the road connects
         self._nodes = []
@@ -201,8 +216,8 @@ class _AbstractJunction:
 
 
 class AbstractSourceSink(_AbstractJunction):
-    def __init__(self, location, inflow=0, *, fundamental_diagram=None, id=None):
-        super().__init__(location, id=id)
+    def __init__(self, location, inflow=0, *, fundamental_diagram=None, id=None, node_class=Node, link_class=Link):
+        super().__init__(location, id=id, node_class=node_class, link_class=link_class)
         self.inflow = inflow
         self.fundamental_diagram = fundamental_diagram if fundamental_diagram is not None else FundamentalDiagram()
         self.source_node = SourceNode(self.location, self.inflow, id=str(id)+".source")
@@ -224,8 +239,8 @@ class AbstractSourceSink(_AbstractJunction):
 
 
 class AbstractIntersection(_AbstractJunction):
-    def __init__(self, location, radius=8, *, id=None):
-        super().__init__(location, id=id)
+    def __init__(self, location, radius=8, *, id=None, node_class=Node, link_class=Link):
+        super().__init__(location, id=id, node_class=node_class, link_class=link_class)
         self.radius = radius
         self._lsr_map = {}  # {incoming_road: {"l": outgoing_road, "s": outgoing_road, "r": outgoing_road}, ...}
         self._nodes_logic = {}  # {incoming_road: {"ls": node_ls, "l": node_l, "r": node_r}, ...}
@@ -261,9 +276,9 @@ class AbstractIntersection(_AbstractJunction):
             road_node = self._road_node_incoming(incoming_road)
             _vec = self.location - road_node.pos
             _perp = np.array([-_vec[1], _vec[0]])
-            node_ls = Node(road_node.pos + 0.4*_vec, id=str(self.id)+"_"+str(incoming_road.id)+"_ls")
-            node_l = Node(road_node.pos + 0.8*_vec, id=str(self.id)+"_"+str(incoming_road.id)+"_l")
-            node_r = Node(road_node.pos + 0.4*_vec-0.4*_perp, id=str(self.id)+"_"+str(incoming_road.id)+"_r")
+            node_ls = self.node_class(road_node.pos + 0.4*_vec, id=str(self.id)+"_"+str(incoming_road.id)+"_ls")
+            node_l = self.node_class(road_node.pos + 0.8*_vec, id=str(self.id)+"_"+str(incoming_road.id)+"_l")
+            node_r = self.node_class(road_node.pos + 0.4*_vec-0.4*_perp, id=str(self.id)+"_"+str(incoming_road.id)+"_r")
             # classify connections as left, straight, or right
             self._lsr_map[incoming_road] = dict()
             for outgoing_road in outgoing_roads:
@@ -286,26 +301,26 @@ class AbstractIntersection(_AbstractJunction):
             # add links and nodes as necessary
             if "l" in self._lsr_map[incoming_road] or "s" in self._lsr_map[incoming_road]:
                 self._nodes_logic[incoming_road]["ls"] = node_ls
-                self._links_logic[incoming_road]["ls_queue"] = Link(from_node=road_node, to_node=node_ls,
-                                                                    fundamental_diagram=FundamentalDiagram())
+                self._links_logic[incoming_road]["ls_queue"] = self.link_class(from_node=road_node, to_node=node_ls,
+                                                                               fundamental_diagram=FundamentalDiagram())
             if "l" in self._lsr_map[incoming_road]:
                 self._nodes_logic[incoming_road]["l"] = node_l
-                self._links_logic[incoming_road]["l_queue"] = Link(from_node=node_ls, to_node=node_l,
-                                                                   fundamental_diagram=FundamentalDiagram())
+                self._links_logic[incoming_road]["l_queue"] = self.link_class(from_node=node_ls, to_node=node_l,
+                                                                              fundamental_diagram=FundamentalDiagram())
                 to_node = self._road_node_outgoing(self._lsr_map[incoming_road]["l"])
-                self._links_logic[incoming_road]["l_mvmt"] = Link(from_node=node_l, to_node=to_node,
-                                                                  fundamental_diagram=FundamentalDiagram())
+                self._links_logic[incoming_road]["l_mvmt"] = self.link_class(from_node=node_l, to_node=to_node,
+                                                                             fundamental_diagram=FundamentalDiagram())
             if "s" in self._lsr_map[incoming_road]:
                 to_node = self._road_node_outgoing(self._lsr_map[incoming_road]["s"])
-                self._links_logic[incoming_road]["s_mvmt"] = Link(from_node=node_ls, to_node=to_node,
-                                                                  fundamental_diagram=FundamentalDiagram())
+                self._links_logic[incoming_road]["s_mvmt"] = self.link_class(from_node=node_ls, to_node=to_node,
+                                                                             fundamental_diagram=FundamentalDiagram())
             if "r" in self._lsr_map[incoming_road]:
                 self._nodes_logic[incoming_road]["r"] = node_r
-                self._links_logic[incoming_road]["r_queue"] = Link(from_node=road_node, to_node=node_r,
-                                                                   fundamental_diagram=FundamentalDiagram())
+                self._links_logic[incoming_road]["r_queue"] = self.link_class(from_node=road_node, to_node=node_r,
+                                                                              fundamental_diagram=FundamentalDiagram())
                 to_node = self._road_node_outgoing(self._lsr_map[incoming_road]["r"])
-                self._links_logic[incoming_road]["r_mvmt"] = Link(from_node=node_r, to_node=to_node,
-                                                                  fundamental_diagram=FundamentalDiagram())
+                self._links_logic[incoming_road]["r_mvmt"] = self.link_class(from_node=node_r, to_node=to_node,
+                                                                             fundamental_diagram=FundamentalDiagram())
         # disable internal u-turns
         for road in self.incoming_roads:
             road_node = self._road_node_incoming(road)
@@ -410,8 +425,9 @@ class SignalPhase:
 
 
 class AbstractSignalizedIntersection(AbstractIntersection):
-    def __init__(self, location, radius=8, *, id=None, phases: List[SignalPhase] = None):
-        super().__init__(location=location, radius=radius, id=id)
+    def __init__(self, location, radius=8, *, id=None, phases: List[SignalPhase] = None,
+                 node_class=IndependentDivergeNode, link_class=Link):
+        super().__init__(location=location, radius=radius, id=id, node_class=node_class, link_class=link_class)
         self.phases = [] if phases is None else phases  # type: list[SignalPhase]
         self._current_phase_index = 0
         self._update()
