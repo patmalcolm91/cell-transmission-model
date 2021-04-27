@@ -518,13 +518,14 @@ class AbstractNetwork:
 if __name__ == "__main__":
     from matplotlib.animation import FuncAnimation
     from CellTransmissionModel.ctm import Simulation
+    fd = FundamentalDiagram(flow_capacity=1800, critical_density=36)
     sourcesink1 = AbstractSourceSink((-20, 0), 1000)
     sourcesink2 = AbstractSourceSink((170, 50), 0)
     sourcesink3 = AbstractSourceSink((100, 50), 0)
-    rd1 = AbstractRoad([(0, 0), (85, 0)], id="rd1")
+    rd1 = AbstractRoad([(0, 0), (85, 0)], id="rd1", fundamental_diagram_a=fd, fundamental_diagram_b=fd)
     intersection = AbstractSignalizedIntersection((100, 0), radius=15, phases=[SignalPhase(30, (rd1, "l"))])
-    rd2 = AbstractRoad([(115, 0), (125, 0), (150, 50)], id="rd2")
-    rd3 = AbstractRoad([(100, 15), (100, 35)], id="rd3")
+    rd2 = AbstractRoad([(115, 0), (125, 0), (150, 50)], id="rd2", fundamental_diagram_a=fd, fundamental_diagram_b=fd)
+    rd3 = AbstractRoad([(100, 15), (100, 35)], id="rd3", fundamental_diagram_a=fd, fundamental_diagram_b=fd)
     rd1.from_intersection = sourcesink1
     rd1.to_intersection = intersection
     rd2.from_intersection = intersection
