@@ -149,6 +149,17 @@ class AbstractRoad:
         for from_link, to_link in self._twin_links.items():
             from_link.set_outgoing_split_ratios_by_reference({to_link: 0})
 
+    def fundamental_diagram_into_intersection(self, intersection):
+        """Get the fundamental diagram for the direction of the road leading into the specified intersection."""
+        if self.from_intersection == intersection:
+            if self.oneway:
+                raise KeyError("Road "+str(self.id)+" does not connect to intersection "+str(intersection.id))
+            return self._fundamental_diagram_template_b
+        elif self.to_intersection == intersection:
+            return self._fundamental_diagram_template_a
+        else:
+            KeyError("Road "+str(self.id)+" does not connect to intersection "+str(intersection.id))
+
     @property
     def nodes(self):
         return self._nodes
@@ -299,28 +310,29 @@ class AbstractIntersection(_AbstractJunction):
                         raise UserWarning("More than one left movement detected from road " + str(incoming_road.id))
                     self._lsr_map[incoming_road]["l"] = outgoing_road
             # add links and nodes as necessary
+            fd = incoming_road.fundamental_diagram_into_intersection(self)
             if "l" in self._lsr_map[incoming_road] or "s" in self._lsr_map[incoming_road]:
                 self._nodes_logic[incoming_road]["ls"] = node_ls
                 self._links_logic[incoming_road]["ls_queue"] = self.link_class(from_node=road_node, to_node=node_ls,
-                                                                               fundamental_diagram=FundamentalDiagram())
+                                                                               fundamental_diagram=copy(fd))
             if "l" in self._lsr_map[incoming_road]:
                 self._nodes_logic[incoming_road]["l"] = node_l
                 self._links_logic[incoming_road]["l_queue"] = self.link_class(from_node=node_ls, to_node=node_l,
-                                                                              fundamental_diagram=FundamentalDiagram())
+                                                                              fundamental_diagram=copy(fd))
                 to_node = self._road_node_outgoing(self._lsr_map[incoming_road]["l"])
                 self._links_logic[incoming_road]["l_mvmt"] = self.link_class(from_node=node_l, to_node=to_node,
-                                                                             fundamental_diagram=FundamentalDiagram())
+                                                                             fundamental_diagram=copy(fd))
             if "s" in self._lsr_map[incoming_road]:
                 to_node = self._road_node_outgoing(self._lsr_map[incoming_road]["s"])
                 self._links_logic[incoming_road]["s_mvmt"] = self.link_class(from_node=node_ls, to_node=to_node,
-                                                                             fundamental_diagram=FundamentalDiagram())
+                                                                             fundamental_diagram=copy(fd))
             if "r" in self._lsr_map[incoming_road]:
                 self._nodes_logic[incoming_road]["r"] = node_r
                 self._links_logic[incoming_road]["r_queue"] = self.link_class(from_node=road_node, to_node=node_r,
-                                                                              fundamental_diagram=FundamentalDiagram())
+                                                                              fundamental_diagram=copy(fd))
                 to_node = self._road_node_outgoing(self._lsr_map[incoming_road]["r"])
                 self._links_logic[incoming_road]["r_mvmt"] = self.link_class(from_node=node_r, to_node=to_node,
-                                                                             fundamental_diagram=FundamentalDiagram())
+                                                                             fundamental_diagram=copy(fd))
         # disable internal u-turns
         for road in self.incoming_roads:
             road_node = self._road_node_incoming(road)
