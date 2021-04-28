@@ -11,6 +11,7 @@ from CellTransmissionModel.ctm import Network, Node, SourceNode, SinkNode, Indep
 from CellTransmissionModel._Util import signed_angle_from_three_points
 import re
 from copy import copy
+import warnings
 
 
 EPS = 1E-6  # epsilon (threshold for small values)
@@ -225,6 +226,10 @@ class _AbstractJunction:
             return None
         return road.nodes[end]
 
+    def step(self, dt):
+        """Update the junction by one time step of size dt."""
+        pass
+
 
 class AbstractSourceSink(_AbstractJunction):
     def __init__(self, location, inflow=0, *, fundamental_diagram=None, id=None, node_class=Node, link_class=Link):
@@ -396,6 +401,11 @@ class AbstractIntersection(_AbstractJunction):
         if _has_l:
             _nodes["l"].set_split_ratios_by_reference({(_links["l_queue"], _links["l_mvmt"]): 1})
 
+    def step(self, dt):
+        """Update the intersection by a time step of dt."""
+        # TODO: implement reduced left turn capacities due to oncoming traffic
+        warnings.warn("Note: reduced capacity for conflicting intersection movements not yet implemented.")
+
 
 class SignalPhase:
     """
@@ -442,6 +452,7 @@ class AbstractSignalizedIntersection(AbstractIntersection):
         super().__init__(location=location, radius=radius, id=id, node_class=node_class, link_class=link_class)
         self.phases = [] if phases is None else phases  # type: list[SignalPhase]
         self._current_phase_index = 0
+        self._time_since_phase_change = 0  # in seconds
         self._update()
 
     @property
@@ -462,6 +473,7 @@ class AbstractSignalizedIntersection(AbstractIntersection):
     def next_phase(self):
         """Move to the next phase in the signal plan."""
         self._current_phase_index = (self._current_phase_index + 1) % self.n_phases
+        self._time_since_phase_change = 0
         self._update()
 
     def _update(self):
@@ -484,6 +496,12 @@ class AbstractSignalizedIntersection(AbstractIntersection):
                     self._links_logic[incoming_road]["s_mvmt"].enabled = True
             if "r" in directions:
                 self._links_logic[incoming_road]["r_queue"].enabled = True
+
+    def step(self, dt):
+        """Step the signalized intersection by time step dt (hours)."""
+        if self._time_since_phase_change >= self.current_phase.duration:
+            self.next_phase()
+        self._time_since_phase_change += dt*3600
 
 
 class AbstractNetwork:
