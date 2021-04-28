@@ -414,7 +414,7 @@ class Link:
             ax = plt.gca()  # type: plt.gca()
         start = self.from_node.pos + exaggeration*self.from_node.radius*self._unit_vector
         delta = (self.length - exaggeration*(self.from_node.radius + self.to_node.radius))*self._unit_vector
-        kwargs = {"alpha": 1 if self.enabled else 0.3, **kwargs}
+        kwargs = {"alpha": 1 if self.enabled else 0.3, "zorder": 10 if self.enabled else 9, **kwargs}
         if half_arrows:
             _w = kwargs.pop("width", exaggeration*self.flow_capacity*3.2/1800)
             coords = [start, start+delta,
