@@ -5,6 +5,7 @@ Classes and utilities for defining a network at a more abstract level (roads and
 import numpy as np
 import matplotlib.pyplot as plt
 from shapely.geometry import LineString, Point
+from matplotlib.offsetbox import AnchoredText
 from abc import abstractmethod
 from typing import List
 from CellTransmissionModel.ctm import Network, Node, SourceNode, SinkNode, IndependentDivergeNode, Link, FundamentalDiagram
@@ -529,6 +530,36 @@ class AbstractNetwork:
             raise Exception("Net not yet compiled.")
         return self._net
 
+    def step(self, dt):
+        for intersection in self.intersections:
+            intersection.step(dt)
+        self.net.step(dt)
+
+
+class AbstractSimulation:
+    def __init__(self, abstract_network, start_time=0, end_time=24, step_size=0.25, scenario_file=None):
+        self.abstract_network = abstract_network  # type: AbstractNetwork
+        self.start_time = start_time
+        self.time = start_time
+        self.end_time = end_time
+        self.step_size = step_size
+        if scenario_file is not None:
+            raise NotImplementedError("Scenario file for AbstractSimulation not yet implemented.")
+
+    def step(self):
+        self.time += self.step_size
+        self.abstract_network.step(self.step_size)
+
+    def plot(self, ax=None, timestamp_loc="upper left", exaggeration=1, half_arrows=True, **kwargs):
+        ax = ax if ax is not None else plt.gca()
+        artists = []
+        artists += self.abstract_network.net.plot(ax, exaggeration=exaggeration, half_arrows=half_arrows, **kwargs)
+        if timestamp_loc is not None:
+            h, m, s = int(self.time), int((self.time*60) % 60)%60, round((self.time*3600) % 60)%60
+            artists.append(AnchoredText("{:02.0f}:{:02.0f}:{:02.0f}".format(h, m, s), loc=timestamp_loc))
+            ax.add_artist(artists[-1])
+        return artists
+
 
 if __name__ == "__main__":
     from matplotlib.animation import FuncAnimation
@@ -538,7 +569,8 @@ if __name__ == "__main__":
     sourcesink2 = AbstractSourceSink((170, 50), 0)
     sourcesink3 = AbstractSourceSink((100, 50), 0)
     rd1 = AbstractRoad([(0, 0), (85, 0)], id="rd1", fundamental_diagram_a=fd, fundamental_diagram_b=fd)
-    intersection = AbstractSignalizedIntersection((100, 0), radius=15, phases=[SignalPhase(30, (rd1, "l"))])
+    intersection = AbstractSignalizedIntersection((100, 0), radius=15, phases=[SignalPhase(30, (rd1, "l")),
+                                                                               SignalPhase(30, (rd1, "s"))])
     rd2 = AbstractRoad([(115, 0), (125, 0), (150, 50)], id="rd2", fundamental_diagram_a=fd, fundamental_diagram_b=fd)
     rd3 = AbstractRoad([(100, 15), (100, 35)], id="rd3", fundamental_diagram_a=fd, fundamental_diagram_b=fd)
     rd1.from_intersection = sourcesink1
@@ -550,14 +582,14 @@ if __name__ == "__main__":
     anet = AbstractNetwork(roads=[rd1, rd2, rd3], intersections=[sourcesink1, intersection, sourcesink2, sourcesink3])
     intersection.set_turning_ratios(rd1, left=0.5, straight=0.5)
     intersection._update()
-    sim = Simulation(anet.net, step_size=0.0001)
+    asim = AbstractSimulation(anet, step_size=0.0001)
 
     def anim(t, ax, sim):
         artists = sim.plot(ax, exaggeration=1, half_arrows=True)
-        sim.step()
+        asim.step()
         return artists
 
     fig, ax = plt.subplots()  # type: plt.Figure, plt.Axes
-    a = FuncAnimation(fig, anim, fargs=(ax, sim), blit=True, interval=100)
+    a = FuncAnimation(fig, anim, fargs=(ax, asim), blit=True, interval=100)
     # anet.net.plot()
     plt.show()
