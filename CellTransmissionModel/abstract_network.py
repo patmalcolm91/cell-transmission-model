@@ -4,6 +4,8 @@ Classes and utilities for defining a network at a more abstract level (roads and
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+from matplotlib.patches import Circle
 from shapely.geometry import LineString, Point
 from matplotlib.offsetbox import AnchoredText
 from abc import abstractmethod
@@ -504,6 +506,39 @@ class AbstractSignalizedIntersection(AbstractIntersection):
             self.next_phase()
         self._time_since_phase_change += dt*3600
 
+    def plot_current_phase_diagram(self, ax=None, cx=0, cy=0, scale=1, arrow_scale=1, autoscale_view=False):
+        # TODO: make work with blitting
+        warnings.warn("Note: plot_current_phase_diagram() does not currently work properly with blitting enabled.")
+        artists = []
+        if ax is None:
+            ax = plt.gca()  # type: plt.Axes
+        arrow_kwargs = dict(lw=4*arrow_scale, head_width=0.2*arrow_scale, head_length=0.2*arrow_scale, color="black")
+        line_kwargs = dict(lw=4*arrow_scale, color="black")
+        artists.append(Circle((cx, cy), 1.1*scale, edgecolor="black", linewidth=2*arrow_scale, facecolor="white"))
+        ax.add_patch(artists[-1])
+        for rd, dirs in self.current_phase.movements.items():
+            direction_vector = rd.get_last_link_to_intersection(self).direction
+            perp_vector = np.array([direction_vector[1], -direction_vector[0]])
+            pt0 = np.array([cx, cy]) - scale*direction_vector
+            if "s" in dirs:
+                artists.append(plt.arrow(*pt0, *(0.7*scale*direction_vector), **arrow_kwargs))
+            if "r" in dirs:
+                rpt0 = pt0 + 0.2*scale*perp_vector
+                bend_pt = rpt0 + 0.6*scale*direction_vector
+                artists.append(Line2D(*zip(rpt0, bend_pt), **line_kwargs))
+                ax.add_artist(artists[-1])
+                artists.append(plt.arrow(*bend_pt, *(0.4*scale*perp_vector), **arrow_kwargs))
+            if "l" in dirs:
+                lpt0 = pt0 - 0.2*scale*perp_vector
+                bend_pt = lpt0 + 0.6*scale*direction_vector
+                artists.append(Line2D(*zip(lpt0, bend_pt), **line_kwargs))
+                ax.add_artist(artists[-1])
+                artists.append(plt.arrow(*bend_pt, *(-0.4*scale*perp_vector), **arrow_kwargs))
+        if autoscale_view:
+            ax.set_aspect("equal")
+            ax.autoscale_view()
+        return artists
+
 
 class AbstractNetwork:
     def __init__(self, roads, intersections):
@@ -585,11 +620,15 @@ if __name__ == "__main__":
     asim = AbstractSimulation(anet, step_size=0.0001)
 
     def anim(t, ax, sim):
+        plt.cla()
         artists = sim.plot(ax, exaggeration=1, half_arrows=True)
+        artists += intersection.plot_current_phase_diagram(ax, 50, 50, scale=30, arrow_scale=0.6)
         asim.step()
         return artists
 
     fig, ax = plt.subplots()  # type: plt.Figure, plt.Axes
-    a = FuncAnimation(fig, anim, fargs=(ax, asim), blit=True, interval=100)
+    a = FuncAnimation(fig, anim, fargs=(ax, asim), blit=False, interval=100)
+    asim.abstract_network.net.plot_colorbar()
+    # a.save("demo.gif", fps=2.8*3)
     # anet.net.plot()
     plt.show()
