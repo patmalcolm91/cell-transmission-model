@@ -433,6 +433,11 @@ class Network:
         self._nodes = [] if nodes is None else nodes
         self._links = [] if links is None else links
         self._mappable = None  # type: plt.cm.ScalarMappable
+        self._mappable_label = None
+        self._mappable_cmap = None
+        self._mappable_max_val = None
+        self._plot_mode = None
+        self.set_plot_mode("density")
         self._max_dt = min((l.length/1000)/l.free_flow_speed for l in links)  # max value that the time step may take
 
     @classmethod
@@ -478,6 +483,19 @@ class Network:
             link.set_outgoing_split_ratios(ratios)
         return cls(nodes=nodes.values(), links=links.values())
 
+    @property
+    def plot_mode(self):
+        return self._plot_mode
+
+    def set_plot_mode(self, mode, label=None, cmap=None, max_val=None):
+        self._plot_mode = mode
+        default_labels = {"density": "Density (veh/km)", "speed": "Speed (km/h)", "flow": "Flow (veh/h)"}
+        default_cmaps = {"density": "RdYlGn_r", "speed": "RdYlGn", "flow": "RdYlGn"}
+        default_max_val = {"density": "critical_density", "speed": "free_flow_speed", "flow": "flow_capacity"}
+        self._mappable_label = label if label is not None else default_labels[mode]
+        self._mappable_cmap = cmap if cmap is not None else default_cmaps[mode]
+        self._mappable_max_val = max_val if max_val is not None else default_max_val[mode]
+
     def get_node_by_id(self, id):
         for node in self._nodes:
             if node.id == id:
@@ -519,16 +537,19 @@ class Network:
     def colorbar_mappable(self):
         if self._mappable is not None:
             return self._mappable
-        max_flow = max(*[link.flow_capacity for link in self._links])
-        cmap = plt.get_cmap("RdYlGn")
-        self._mappable = plt.cm.ScalarMappable(cmap=cmap, norm=Normalize(vmin=0, vmax=max_flow))
+        if type(self._mappable_max_val) in (int, float):
+            max_val = self._mappable_max_val
+        else:
+            max_val = max(*[getattr(link, self._mappable_max_val) for link in self._links])
+        cmap = plt.get_cmap(self._mappable_cmap)
+        self._mappable = plt.cm.ScalarMappable(cmap=cmap, norm=Normalize(vmin=0, vmax=max_val))
         return self._mappable
 
     def plot_colorbar(self, ax=None):
         if ax is None:
             ax = plt.gca()
         cb = plt.colorbar(self.colorbar_mappable, ax=ax)
-        cb.set_label("Flow (veh/h)")
+        cb.set_label(self._mappable_label)
 
     def plot(self, ax=None, exaggeration=1, half_arrows=False):
         if ax is None:
@@ -537,7 +558,8 @@ class Network:
         for node in self._nodes:
             artists += node.plot(ax, exaggeration=exaggeration)
         for link in self._links:
-            artists += link.plot(ax, exaggeration=exaggeration, color=self.colorbar_mappable.to_rgba(link.flow),
+            val = getattr(link, self._plot_mode)
+            artists += link.plot(ax, exaggeration=exaggeration, color=self.colorbar_mappable.to_rgba(val if val is not None else 0),
                                  half_arrows=half_arrows)
         ax.set_aspect("equal")
         ax.autoscale_view()
