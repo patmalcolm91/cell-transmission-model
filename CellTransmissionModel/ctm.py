@@ -306,6 +306,21 @@ class Link:
         return [artist]
 
 
+class BottleneckLink(Link):
+    """A link which has a user-defined input supply."""
+    def __init__(self, input_supply, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._input_supply = input_supply
+
+    @property
+    def input_supply(self):
+        return self._input_supply
+
+    @input_supply.setter
+    def input_supply(self, val):
+        self._input_supply = val
+
+
 class Network:
     def __init__(self, nodes=None, links=None):
         self._nodes = [] if nodes is None else nodes
@@ -347,14 +362,21 @@ class Network:
         for lid, link in links.items():
             if type(link) == list:
                 link = {"nodes": link}
+            _id = link.pop("id", None)
             from_node, to_node = [nodes[n] for n in link.pop("nodes")]
             density = link.pop("density", 0)
             _ratios = link.pop("split_ratios", None)
             _fd = link.pop("fundamental_diagram", None)
             _fd_params = fundamental_diagrams.get(_fd, {})
-            links[lid] = Link(from_node, to_node,
-                              FundamentalDiagram(**{**default_fd_params, **_fd_params, **link}),
-                              density=density)
+            if "input_supply" in link:
+                _input_supply = link.pop("input_supply")
+                links[lid] = BottleneckLink(_input_supply, from_node, to_node,
+                                            FundamentalDiagram(**{**default_fd_params, **_fd_params, **link}),
+                                            density=density, id=_id)
+            else:
+                links[lid] = Link(from_node, to_node,
+                                  FundamentalDiagram(**{**default_fd_params, **_fd_params, **link}),
+                                  density=density, id=_id)
             if _ratios is not None:
                 split_ratios[links[lid]] = _ratios
         for link, ratios in split_ratios.items():
