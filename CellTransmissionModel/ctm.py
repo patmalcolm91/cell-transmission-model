@@ -113,7 +113,7 @@ class Node:
     def compute_flows(self):
         m, n = len(self.incoming_links), len(self.outgoing_links)
         # step 1
-        supplies = [min(link.flow_capacity, link.congestion_wave_speed*(link.jam_density - link.density)) for link in self.outgoing_links]
+        supplies = [link.input_supply for link in self.outgoing_links]
         # step 2
         q = 0
         # step 3
@@ -274,6 +274,10 @@ class Link:
     @property
     def speed(self):
         return self.fundamental_diagram.speed_at_density(self.density)
+
+    @property
+    def input_supply(self):
+        return min(self.flow_capacity, self.congestion_wave_speed * (self.jam_density - self.density))
 
     def set_outgoing_split_ratios(self, ratios):
         """
